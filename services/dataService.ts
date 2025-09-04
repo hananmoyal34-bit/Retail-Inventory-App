@@ -1,0 +1,271 @@
+import { readSheet } from './googleSheetService';
+import { Product, User, Location, InventoryLog, LocationOrder, CountLog, ShippingData, AppSheetProduct, WarehouseCountLog } from '../types';
+
+export let TIMEZONE = 'America/Los_Angeles'; // Default timezone, will be overwritten by config.
+
+/**
+ * Initializes app-wide configuration by fetching it from the 'Config' sheet.
+ * This should be called once when the application starts.
+ */
+export const initializeAppConfig = async (): Promise<void> => {
+  try {
+    const data = await readSheet(SHEET_NAMES.config);
+    if (data.length > 0) {
+      const configMap = new Map<string, string>();
+      // Assumes key-value pairs in the first two columns
+      data.forEach(row => {
+        if (row[0] && row[1]) {
+          configMap.set(row[0].trim(), row[1].trim());
+        }
+      });
+      
+      const sheetTimezone = configMap.get('Timezone');
+      if (sheetTimezone) {
+        // Test if the timezone is valid before setting it
+        try {
+          new Intl.DateTimeFormat('en-US', { timeZone: sheetTimezone }).format();
+          TIMEZONE = sheetTimezone;
+          console.log(`Timezone successfully set to: ${TIMEZONE}`);
+        } catch (e) {
+          console.error(`Invalid timezone specified in Config sheet: "${sheetTimezone}". Falling back to default.`);
+        }
+      }
+    }
+  } catch (error) {
+    console.error("Could not fetch or apply app configuration from Google Sheet. Using default settings.", error);
+  }
+};
+
+
+/**
+ * Gets the current date as a 'YYYY-MM-DD' string in the specified timezone.
+ */
+export const getCurrentDateInTimezone = (): string => {
+  try {
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: TIMEZONE,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    return formatter.format(new Date());
+  } catch (e) {
+    console.error(`Failed to format date for ${TIMEZONE} timezone, falling back to local date.`, e);
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = (d.getMonth() + 1).toString().padStart(2, '0');
+    const day = d.getDate().toString().padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+};
+
+/**
+ * Formats a given date string or object into a 'YYYY-MM-DD' string in the specified timezone.
+ * @param date - The date to format.
+ * @returns {string | null} A date string in YYYY-MM-DD format, or null if the date is invalid.
+ */
+export const formatDateToYMD = (date: string | Date): string | null => {
+    if (!date) return null;
+    try {
+        const formatter = new Intl.DateTimeFormat('en-CA', {
+            timeZone: TIMEZONE,
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+        });
+        return formatter.format(new Date(date));
+    } catch (e) {
+        console.warn(`Could not parse or format date: ${date}`);
+        return null;
+    }
+};
+
+/**
+ * Formats a given date string or object into a locale string with time (AM/PM) in the specified timezone.
+ * e.g., "6/5/2024, 5:30:45 PM"
+ * @param date - The date to format.
+ */
+export const formatToLocaleString = (date: string | Date): string => {
+    if (!date) return 'Invalid Date';
+    try {
+        const options: Intl.DateTimeFormatOptions = { 
+            timeZone: TIMEZONE,
+            year: 'numeric',
+            month: 'numeric',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: 'numeric',
+            second: 'numeric',
+            hour12: true,
+        };
+        return new Date(date).toLocaleString('en-US', options);
+    } catch (e) {
+        console.warn(`Could not parse or format date: ${date}`);
+        return 'Invalid Date';
+    }
+};
+
+const SHEET_NAMES = {
+  products: 'Products',
+  users: 'Users',
+  locations: 'Locations',
+  inventoryLogs: 'Inventory Log',
+  locationOrders: 'Location Orders',
+  count: 'Count',
+  config: 'Config',
+  shipping: 'Shipping',
+  productsListAppsheet: 'PRODUCTS_LIST_APPSHEET',
+  warehouseCount: 'Warehouse Count',
+};
+
+// Helper to parse data safely.
+const safeParseInt = (val: string) => val ? parseInt(val.trim(), 10) : 0;
+const safeParseString = (val: any) => val ? String(val) : '';
+
+export const getProducts = async (): Promise<Product[]> => {
+  const data = await readSheet(SHEET_NAMES.products);
+  if (data.length <= 1) return []; // No data beyond header
+  const rows = data.slice(1);
+  return rows.map(row => ({
+    productID: safeParseString(row[0]),
+    productName: safeParseString(row[1]),
+    // Swapped column indices to fix sync issue: createDate is likely column 4, imageUrl is column 3.
+    createDate: formatDateToYMD(safeParseString(row[3])) || '',
+    imageUrl: safeParseString(row[2]),
+  })).filter(p => p.productID); // Filter out empty rows
+};
+
+export const getAppSheetProducts = async (): Promise<AppSheetProduct[]> => {
+  const data = await readSheet(SHEET_NAMES.productsListAppsheet);
+  if (data.length <= 1) return []; // No data beyond header
+  const rows = data.slice(1);
+  return rows.map(row => {
+    const colorsString = safeParseString(row[1]);
+    return {
+      name: safeParseString(row[0]),
+      colors: colorsString ? colorsString.split(',').map(c => c.trim()) : [],
+      category: safeParseString(row[2]),
+      subCategory: safeParseString(row[3]),
+    };
+  }).filter(p => p.name && p.category); // Filter out empty/invalid rows
+};
+
+export const getUsers = async (): Promise<User[]> => {
+  const data = await readSheet(SHEET_NAMES.users);
+  if (data.length <= 1) return [];
+  const rows = data.slice(1);
+  return rows.map(row => ({
+    userID: safeParseString(row[0]),
+    name: safeParseString(row[1]),
+    email: safeParseString(row[2]),
+    phone: safeParseString(row[3]),
+    accessCode: safeParseString(row[4]),
+    location: safeParseString(row[5]),
+  })).filter(u => u.userID);
+};
+
+export const getLocations = async (): Promise<Location[]> => {
+  const data = await readSheet(SHEET_NAMES.locations);
+  if (data.length <= 1) return [];
+  const rows = data.slice(1);
+  return rows.map(row => ({
+    id: safeParseString(row[0]),
+    name: safeParseString(row[1]),
+    locationFullName: safeParseString(row[2]),
+  })).filter(l => l.id);
+};
+
+export const getInventoryLogs = async (): Promise<InventoryLog[]> => {
+  const data = await readSheet(SHEET_NAMES.inventoryLogs);
+  if (data.length <= 1) return [];
+  const rows = data.slice(1);
+  return rows.map(row => ({
+    logID: safeParseString(row[0]),
+    date: safeParseString(row[1]),
+    location: safeParseString(row[2]),
+    productName: safeParseString(row[3]),
+    transactionType: safeParseString(row[4]) as any,
+    quantity: safeParseInt(row[5]),
+  })).filter(log => log.logID);
+};
+
+export const getCountLogs = async (): Promise<CountLog[]> => {
+  const data = await readSheet(SHEET_NAMES.count);
+  if (data.length <= 1) return [];
+  const rows = data.slice(1);
+  return rows.map(row => ({
+    logID: safeParseString(row[0]),
+    date: safeParseString(row[1]),
+    location: safeParseString(row[2]),
+    productName: safeParseString(row[3]),
+    openingStock: safeParseInt(row[4]),
+    stockIn: safeParseInt(row[5]),
+    inStoreSales: safeParseInt(row[6]),
+    warehouseShipping: safeParseInt(row[7]),
+    physicalEndCount: safeParseInt(row[8]),
+    calculatedEndCount: safeParseInt(row[9]),
+    variance: safeParseInt(row[10]),
+  })).filter(log => log.logID);
+};
+
+export const getWarehouseCountLogs = async (): Promise<WarehouseCountLog[]> => {
+  const data = await readSheet(SHEET_NAMES.warehouseCount);
+  if (data.length <= 1) return [];
+  const rows = data.slice(1);
+  return rows.map(row => ({
+    countID: safeParseString(row[0]),
+    productName: safeParseString(row[1]),
+    color: safeParseString(row[2]),
+    quantity: safeParseInt(row[3]),
+    notes: safeParseString(row[4]),
+    timestamp: safeParseString(row[5]),
+    user: safeParseString(row[6]),
+  })).filter(log => log.countID && log.productName);
+};
+
+export const getLocationOrders = async (): Promise<LocationOrder[]> => {
+    const data = await readSheet(SHEET_NAMES.locationOrders);
+    if (data.length <= 1) return [];
+    const rows = data.slice(1);
+    return rows.map(row => ({
+        orderID: safeParseString(row[0]),
+        item: safeParseString(row[1]),
+        colors: safeParseString(row[2]),
+        quantity: safeParseInt(row[3]),
+        notes: safeParseString(row[4]),
+        location: safeParseString(row[5]),
+        createdBy: safeParseString(row[6]),
+        timestamp: safeParseString(row[7]),
+        userName: safeParseString(row[8]),
+        status: (safeParseString(row[9]) as any) || 'Pending',
+        officeNotes: safeParseString(row[10]),
+    })).filter(o => o.orderID);
+};
+
+export const getShippingData = async (): Promise<ShippingData[]> => {
+    const data = await readSheet(SHEET_NAMES.shipping);
+    if (data.length <= 1) return [];
+    const rows = data.slice(1);
+
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    sevenDaysAgo.setHours(0, 0, 0, 0); // Start of the 7th day ago
+
+    return rows.map(row => ({
+        timestamp: safeParseString(row[0]),
+        storeName: safeParseString(row[1]),
+        orderNo: safeParseString(row[2]),
+        storeRepName: safeParseString(row[3]),
+        firstName: safeParseString(row[5]), // Column F
+        lastName: safeParseString(row[6]), // Column G
+        ackReceiptUrl: safeParseString(row[22]), // Column W
+    })).filter(s => {
+        if (!s.timestamp || !s.storeName) return false;
+        try {
+            const shipmentDate = new Date(s.timestamp);
+            return !isNaN(shipmentDate.getTime()) && shipmentDate >= sevenDaysAgo;
+        } catch (e) {
+            return false;
+        }
+    });
+};
