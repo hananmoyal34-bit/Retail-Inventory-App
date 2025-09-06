@@ -93,6 +93,9 @@ function doPost(e) {
       case 'updateAppSheetProduct':
         response = handleUpdateAppSheetProduct(payload);
         break;
+      case 'getProductCategories':
+        response = handleGetProductCategories();
+        break;
       default:
         throw new Error(`Unknown action: ${action}`);
     }
@@ -427,6 +430,37 @@ function handleDeleteCategory(payload) {
   }
   
   throw new Error("Category ID not found for deletion: " + categoryID);
+}
+
+function handleGetProductCategories() {
+  const sheet = getSheet(SHEET_NAMES.productsCategories);
+  const data = sheet.getDataRange().getValues();
+  if (data.length <= 1) {
+    return { status: 'success', data: [] };
+  }
+  
+  const headers = data[0].map(function(h) { return String(h).trim(); });
+  const categoryIdIndex = headers.indexOf('CategoryID');
+  const categoryIndex = headers.indexOf('Category');
+  const subCategoryIndex = headers.indexOf('Sub-Category');
+
+  if (categoryIdIndex === -1 || categoryIndex === -1 || subCategoryIndex === -1) {
+    throw new Error('Missing required columns (CategoryID, Category, Sub-Category) in PRODUCTS_CATEGORIES sheet.');
+  }
+
+  const categories = [];
+  for (var i = 1; i < data.length; i++) {
+    var row = data[i];
+    if (row[categoryIdIndex]) { // Ensure row is not empty
+        categories.push({
+          categoryID: row[categoryIdIndex],
+          category: row[categoryIndex],
+          subCategory: row[subCategoryIndex]
+        });
+    }
+  }
+  
+  return { status: 'success', data: categories };
 }
 
 

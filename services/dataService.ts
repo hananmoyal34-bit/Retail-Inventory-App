@@ -1,5 +1,6 @@
 import { readSheet } from './googleSheetService';
 import { Product, User, Location, InventoryLog, LocationOrder, CountLog, ShippingData, AppSheetProduct, WarehouseCountLog, ProductCategory } from '../types';
+import { fetchProductCategories } from './writeService';
 
 export let TIMEZONE = 'America/Los_Angeles'; // Default timezone, will be overwritten by config.
 
@@ -154,14 +155,8 @@ export const getAppSheetProducts = async (): Promise<AppSheetProduct[]> => {
 };
 
 export const getProductCategories = async (): Promise<ProductCategory[]> => {
-  const data = await readSheet(SHEET_NAMES.productsCategories);
-  if (data.length <= 1) return [];
-  const rows = data.slice(1);
-  return rows.map(row => ({
-    categoryID: safeParseString(row[0]),
-    category: safeParseString(row[1]),
-    subCategory: safeParseString(row[2]),
-  })).filter(c => c.categoryID);
+  // Use the direct script fetch to avoid gviz caching issues.
+  return await fetchProductCategories();
 };
 
 export const getUsers = async (): Promise<User[]> => {

@@ -27,7 +27,7 @@ export interface SubmitCountPayload {
  * Centralized function to handle all POST requests to the Apps Script.
  * Includes more robust error handling to help diagnose issues.
  */
-const postToAppsScript = async (payload: object): Promise<{ success: boolean; message: string }> => {
+const postToAppsScript = async (payload: object): Promise<{ success: boolean; message: string; data?: any }> => {
     try {
         const response = await fetch(APPS_SCRIPT_URL, {
             method: 'POST',
@@ -55,12 +55,12 @@ const postToAppsScript = async (payload: object): Promise<{ success: boolean; me
             throw new Error(result.message || 'An unknown error occurred in the Apps Script.');
         }
 
-        return { success: true, message: result.message || 'Operation successful!' };
+        return { success: true, message: result.message || 'Operation successful!', data: result.data };
 
     } catch (error) {
         console.error('Error posting to Apps Script:', error);
         const message = error instanceof Error ? error.message : 'Failed to submit. Check network connection or script configuration.';
-        return { success: false, message };
+        return { success: false, message, data: null };
     }
 };
 
@@ -128,6 +128,15 @@ export const updateCategory = async (category: ProductCategory): Promise<{ succe
 
 export const deleteCategory = async (categoryId: string): Promise<{ success: boolean; message: string }> => {
   return postToAppsScript({ action: 'deleteCategory', categoryID: categoryId });
+};
+
+export const fetchProductCategories = async (): Promise<ProductCategory[]> => {
+  const result = await postToAppsScript({ action: 'getProductCategories' });
+  if (result.success && Array.isArray(result.data)) {
+    return result.data;
+  }
+  console.error("Failed to fetch product categories from script:", result.message);
+  return [];
 };
 
 

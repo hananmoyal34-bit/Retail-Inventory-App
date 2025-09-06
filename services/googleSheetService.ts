@@ -34,7 +34,8 @@ export const readSheet = async (sheetName: string): Promise<string[][]> => {
   }
   
   try {
-    const url = `${BASE_URL}?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}`;
+    const cacheBuster = `&_=${new Date().getTime()}`;
+    const url = `${BASE_URL}?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}${cacheBuster}`;
     const response = await fetch(url);
     
     if (!response.ok) {
