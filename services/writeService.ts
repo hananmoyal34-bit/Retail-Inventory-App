@@ -126,6 +126,11 @@ export const updateCategory = async (category: ProductCategory): Promise<{ succe
   return postToAppsScript({ action: 'updateCategory', ...category });
 };
 
+export const deleteCategory = async (categoryId: string): Promise<{ success: boolean; message: string }> => {
+  return postToAppsScript({ action: 'deleteCategory', categoryID: categoryId });
+};
+
+
 // --- User Management Functions ---
 
 export const addUser = async (user: Omit<User, 'userID'>): Promise<{ success: boolean; message: string }> => {

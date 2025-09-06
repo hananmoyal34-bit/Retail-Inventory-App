@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { ProductCategory } from '../types';
 import { getProductCategories } from '../services/dataService';
-import { addCategory, updateCategory } from '../services/writeService';
+import { addCategory, updateCategory, deleteCategory } from '../services/writeService';
 import Modal from './Modal';
-import { PencilIcon, PlusIcon } from './icons';
+import { PencilIcon, PlusIcon, TrashIcon } from './icons';
 
 const CategoryManager: React.FC = () => {
   const [categories, setCategories] = useState<ProductCategory[]>([]);
@@ -19,6 +19,7 @@ const CategoryManager: React.FC = () => {
 
   const fetchCategories = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const data = await getProductCategories();
       const sortedData = data.sort((a, b) => a.category.localeCompare(b.category) || a.subCategory.localeCompare(b.subCategory));
@@ -80,6 +81,21 @@ const CategoryManager: React.FC = () => {
       setError(result.message);
     }
   };
+  
+  const handleDelete = async (category: ProductCategory) => {
+    if (window.confirm(`Are you sure you want to delete the category "${category.category}" with sub-categories "${category.subCategory}"? This action cannot be undone.`)) {
+        setIsSubmitting(true);
+        setError(null);
+        const result = await deleteCategory(category.categoryID);
+        setIsSubmitting(false);
+
+        if (result.success) {
+            await fetchCategories();
+        } else {
+            setError(result.message);
+        }
+    }
+  };
 
   if (loading) {
      return (
@@ -107,6 +123,8 @@ const CategoryManager: React.FC = () => {
           Add Category
         </button>
       </div>
+      
+      {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">{error}</div>}
 
       {/* Desktop Table View */}
       <div className="hidden md:block bg-white shadow-md rounded-lg overflow-hidden">
@@ -133,8 +151,11 @@ const CategoryManager: React.FC = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-right space-x-2">
-                    <button onClick={() => openModalForEdit(cat)} className="text-indigo-600 hover:text-indigo-900 p-1 rounded-md hover:bg-indigo-100">
+                    <button onClick={() => openModalForEdit(cat)} className="text-indigo-600 hover:text-indigo-900 p-1 rounded-md hover:bg-indigo-100" disabled={isSubmitting}>
                       <PencilIcon className="h-5 w-5"/>
+                    </button>
+                    <button onClick={() => handleDelete(cat)} className="text-red-600 hover:text-red-900 p-1 rounded-md hover:bg-red-100" disabled={isSubmitting}>
+                      <TrashIcon className="h-5 w-5"/>
                     </button>
                   </td>
                 </tr>
@@ -151,7 +172,8 @@ const CategoryManager: React.FC = () => {
                 <div className="flex justify-between items-start">
                     <h3 className="font-bold text-lg text-gray-800">{cat.category}</h3>
                     <div className="flex items-center space-x-1 flex-shrink-0">
-                        <button onClick={() => openModalForEdit(cat)} className="p-2 text-indigo-600 hover:bg-indigo-100 rounded-full"><PencilIcon className="h-5 w-5" /></button>
+                        <button onClick={() => openModalForEdit(cat)} className="p-2 text-indigo-600 hover:bg-indigo-100 rounded-full" disabled={isSubmitting}><PencilIcon className="h-5 w-5" /></button>
+                        <button onClick={() => handleDelete(cat)} className="p-2 text-red-600 hover:bg-red-100 rounded-full" disabled={isSubmitting}><TrashIcon className="h-5 w-5" /></button>
                     </div>
                 </div>
                 <div className="border-t pt-3">

@@ -72,6 +72,9 @@ function doPost(e) {
       case 'updateCategory':
         response = handleUpdateCategory(payload);
         break;
+      case 'deleteCategory':
+        response = handleDeleteCategory(payload);
+        break;
       case 'addUser':
         response = handleAddUser(payload);
         break;
@@ -408,6 +411,24 @@ function handleUpdateCategory(payload) {
   }
   throw new Error("Category ID not found for update: " + payload.categoryID);
 }
+
+function handleDeleteCategory(payload) {
+  const sheet = getSheet(SHEET_NAMES.productsCategories);
+  const categoryID = payload.categoryID;
+  if (!categoryID) {
+    throw new Error("Category ID is required for deletion.");
+  }
+  
+  const rowInfo = findRowById(sheet, categoryID, 'CategoryID');
+
+  if (rowInfo) {
+    sheet.deleteRow(rowInfo.rowIndex);
+    return { status: 'success', message: 'Category deleted successfully.' };
+  }
+  
+  throw new Error("Category ID not found for deletion: " + categoryID);
+}
+
 
 /**
  * Handles CRUD operations for users.
