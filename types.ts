@@ -7,8 +7,7 @@ export enum Page {
   USERS = 'USERS',
   ORDERS = 'ORDERS',
   LOCATIONS = 'LOCATIONS',
-  LOGIN_PORTAL = 'LOGIN_PORTAL',
-  LOW_STOCK_PRODUCTS = 'LOW_STOCK_PRODUCTS',
+  MANAGER_PORTAL = 'MANAGER_PORTAL',
   CUSTOMER_SERVICE = 'CUSTOMER_SERVICE',
 }
 
@@ -24,6 +23,13 @@ export interface AppSheetProduct {
   colors: string[];
   category: string;
   subCategory: string;
+  lowStockThreshold: number;
+}
+
+export interface ProductCategory {
+  categoryID: string;
+  category: string;
+  subCategory: string;
 }
 
 export interface User {
@@ -32,6 +38,7 @@ export interface User {
   email: string;
   phone: string;
   accessCode: string;
+  role: 'Admin' | 'Manager' | 'Office' | string;
   location: string;
 }
 
@@ -105,7 +112,7 @@ export interface LocationOrder {
   officeNotes: string;
 }
 
-// For the new Login Portal Order Form
+// For the new Manager Portal Order Form
 export interface OrderItem {
   type: 'product' | 'custom';
   id: string; // productID or a generated ID for custom items

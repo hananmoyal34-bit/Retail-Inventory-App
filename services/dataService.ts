@@ -1,5 +1,5 @@
 import { readSheet } from './googleSheetService';
-import { Product, User, Location, InventoryLog, LocationOrder, CountLog, ShippingData, AppSheetProduct, WarehouseCountLog } from '../types';
+import { Product, User, Location, InventoryLog, LocationOrder, CountLog, ShippingData, AppSheetProduct, WarehouseCountLog, ProductCategory } from '../types';
 
 export let TIMEZONE = 'America/Los_Angeles'; // Default timezone, will be overwritten by config.
 
@@ -116,6 +116,7 @@ const SHEET_NAMES = {
   shipping: 'Shipping',
   productsListAppsheet: 'PRODUCTS_LIST_APPSHEET',
   warehouseCount: 'Warehouse Count',
+  productsCategories: 'PRODUCTS_CATEGORIES',
 };
 
 // Helper to parse data safely.
@@ -141,13 +142,26 @@ export const getAppSheetProducts = async (): Promise<AppSheetProduct[]> => {
   const rows = data.slice(1);
   return rows.map(row => {
     const colorsString = safeParseString(row[1]);
+    const threshold = parseInt(safeParseString(row[4]), 10);
     return {
       name: safeParseString(row[0]),
       colors: colorsString ? colorsString.split(',').map(c => c.trim()) : [],
       category: safeParseString(row[2]),
       subCategory: safeParseString(row[3]),
+      lowStockThreshold: !isNaN(threshold) ? threshold : 10,
     };
   }).filter(p => p.name && p.category); // Filter out empty/invalid rows
+};
+
+export const getProductCategories = async (): Promise<ProductCategory[]> => {
+  const data = await readSheet(SHEET_NAMES.productsCategories);
+  if (data.length <= 1) return [];
+  const rows = data.slice(1);
+  return rows.map(row => ({
+    categoryID: safeParseString(row[0]),
+    category: safeParseString(row[1]),
+    subCategory: safeParseString(row[2]),
+  })).filter(c => c.categoryID);
 };
 
 export const getUsers = async (): Promise<User[]> => {
@@ -160,7 +174,8 @@ export const getUsers = async (): Promise<User[]> => {
     email: safeParseString(row[2]),
     phone: safeParseString(row[3]),
     accessCode: safeParseString(row[4]),
-    location: safeParseString(row[5]),
+    role: safeParseString(row[5]) as any,
+    location: safeParseString(row[6]),
   })).filter(u => u.userID);
 };
 

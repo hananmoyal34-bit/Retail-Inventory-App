@@ -20,6 +20,7 @@ import {
 interface MobileNavMenuProps {
   activePage: Page;
   setActivePage: (page: Page) => void;
+  onLogout: () => void;
 }
 
 const mainNavItems = [
@@ -34,11 +35,10 @@ const manageNavItems = [
     { id: Page.PRODUCTS, label: 'Products', icon: <BoxIcon /> },
     { id: Page.LOCATIONS, label: 'Locations', icon: <LocationMarkerIcon /> },
     { id: Page.USERS, label: 'Users', icon: <UsersIcon /> },
-    { id: Page.LOGIN_PORTAL, label: 'Login Portal', icon: <LoginIcon /> },
     { id: Page.CUSTOMER_SERVICE, label: 'Customer Service', icon: <QuestionMarkCircleIcon /> },
 ];
 
-const MobileNavMenu: React.FC<MobileNavMenuProps> = ({ activePage, setActivePage }) => {
+const MobileNavMenu: React.FC<MobileNavMenuProps> = ({ activePage, setActivePage, onLogout }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isManageOpen, setIsManageOpen] = useState(false);
 
@@ -85,7 +85,7 @@ const MobileNavMenu: React.FC<MobileNavMenuProps> = ({ activePage, setActivePage
       >
         <div className="p-4">
           <div className="flex justify-between items-center mb-4">
-            <h2 id="main-menu-title" className="text-lg font-bold text-gray-800">Main Menu</h2>
+            <h2 id="main-menu-title" className="text-lg font-bold text-gray-800">Admin Menu</h2>
             <button
               onClick={() => setIsOpen(false)}
               className="p-2 text-gray-500 hover:bg-black/10 rounded-full"
@@ -145,6 +145,15 @@ const MobileNavMenu: React.FC<MobileNavMenuProps> = ({ activePage, setActivePage
                          ))}
                     </div>
                   )}
+              </li>
+               <li className="pt-2 border-t mt-2">
+                  <button
+                    onClick={onLogout}
+                    className="w-full flex items-center p-3 rounded-lg text-left text-base font-medium text-red-600 hover:bg-red-50"
+                  >
+                    <LoginIcon className="h-6 w-6 mr-4 transform -scale-x-100" />
+                    <span>Logout</span>
+                  </button>
               </li>
             </ul>
           </nav>

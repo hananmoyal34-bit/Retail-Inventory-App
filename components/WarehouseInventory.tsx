@@ -1,11 +1,10 @@
 
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { InventoryLog as InventoryLogType, WarehouseCountLog, AppSheetProduct } from '../types';
 import { getInventoryLogs, getWarehouseCountLogs, getAppSheetProducts, formatDateToYMD, formatToLocaleString } from '../services/dataService';
 import DatePicker from './DatePicker';
 import { ChevronRightIcon, SearchIcon } from './icons';
-
-const LOW_STOCK_THRESHOLD = 10;
 
 const WarehouseInventory: React.FC = () => {
     const [activeTab, setActiveTab] = useState('inventory');
@@ -42,6 +41,14 @@ const WarehouseInventory: React.FC = () => {
         };
         fetchData();
     }, []);
+
+    const productThresholdMap = useMemo(() => {
+        const map = new Map<string, number>();
+        appSheetProducts.forEach(p => {
+            map.set(p.name, p.lowStockThreshold);
+        });
+        return map;
+    }, [appSheetProducts]);
 
     const warehouseStock = useMemo(() => {
         if (warehouseCountLogs.length === 0 || appSheetProducts.length === 0) return {};
@@ -126,7 +133,8 @@ const WarehouseInventory: React.FC = () => {
 
         Object.entries(warehouseStock).forEach(([category, products]) => {
             products.forEach(product => {
-                if(product.totalStock <= LOW_STOCK_THRESHOLD) {
+                const threshold = productThresholdMap.get(product.productName) ?? 10;
+                if(product.totalStock <= threshold) {
                     lowStockList.push({
                         productName: product.productName,
                         totalStock: product.totalStock,
@@ -137,7 +145,7 @@ const WarehouseInventory: React.FC = () => {
         });
         
         return lowStockList.sort((a, b) => a.totalStock - b.totalStock || a.productName.localeCompare(b.productName));
-    }, [warehouseStock]);
+    }, [warehouseStock, productThresholdMap]);
 
     const transactionTypes = useMemo(() => {
         if (loading) return ['All'];
@@ -313,7 +321,8 @@ const WarehouseInventory: React.FC = () => {
                                                 </span>
                                             </div>
                                             {colors.map((item) => {
-                                                const stockLevelClasses = item.quantity <= 0 ? 'bg-red-100 text-red-800' : item.quantity <= LOW_STOCK_THRESHOLD ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800';
+                                                const threshold = productThresholdMap.get(productName) ?? 10;
+                                                const stockLevelClasses = item.quantity <= 0 ? 'bg-red-100 text-red-800' : item.quantity <= threshold ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800';
                                                 return (
                                                     <div key={item.color} className="px-6 py-3 flex justify-between items-center hover:bg-gray-50/50 ml-4">
                                                         <p className="text-base font-medium text-gray-800 pr-4">{item.color}</p>

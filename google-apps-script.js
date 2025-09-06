@@ -17,7 +17,11 @@ const SHEET_NAMES = {
   count: 'Count',
   locations: 'Locations',
   locationOrders: 'Location Orders',
-  warehouseCount: 'Warehouse Count'
+  warehouseCount: 'Warehouse Count',
+  productsCategories: 'PRODUCTS_CATEGORIES',
+  users: 'Users',
+  products: 'Products',
+  productsListAppsheet: 'PRODUCTS_LIST_APPSHEET'
 };
 
 const LOCK_TIMEOUT_SECONDS = 30;
@@ -33,7 +37,11 @@ function doPost(e) {
   
   try {
     const payload = JSON.parse(e.postData.contents);
-    const action = payload.action || 'submitInventoryCount';
+    const action = payload.action;
+
+    if (!action) {
+        throw new Error("No action specified in the payload.");
+    }
 
     let response;
     switch (action) {
@@ -57,6 +65,30 @@ function doPost(e) {
         break;
       case 'updateOrderStatus':
         response = handleUpdateOrderStatus(payload);
+        break;
+      case 'addCategory':
+        response = handleAddCategory(payload);
+        break;
+      case 'updateCategory':
+        response = handleUpdateCategory(payload);
+        break;
+      case 'addUser':
+        response = handleAddUser(payload);
+        break;
+      case 'updateUser':
+        response = handleUpdateUser(payload);
+        break;
+      case 'addProduct':
+        response = handleAddProduct(payload);
+        break;
+      case 'updateProduct':
+        response = handleUpdateProduct(payload);
+        break;
+      case 'addAppSheetProduct':
+        response = handleAddAppSheetProduct(payload);
+        break;
+      case 'updateAppSheetProduct':
+        response = handleUpdateAppSheetProduct(payload);
         break;
       default:
         throw new Error(`Unknown action: ${action}`);
@@ -87,6 +119,48 @@ function getSheet(name) {
 function generateUniqueId() {
   return Utilities.getUuid();
 }
+
+/**
+ * Finds a row in a sheet by its ID using a robust, case-insensitive and space-insensitive comparison.
+ * @param {Sheet} sheet The Google Sheet object.
+ * @param {string} id The ID to search for.
+ * @param {string} idColumnName The name of the header for the ID column (e.g., 'LocationID', 'User ID').
+ * @returns {object|null} An object with rowIndex, rowData, and headers, or null if not found.
+ */
+function findRowById(sheet, id, idColumnName) {
+  const data = sheet.getDataRange().getValues();
+  if (data.length < 1) {
+    return null; // Empty sheet
+  }
+  
+  // Make header lookup robust to spaces and case by removing them before comparison
+  const headers = data[0].map(function(h) { 
+    return String(h || '').trim().toLowerCase().replace(/\s+/g, ''); 
+  });
+  
+  const searchColumnName = idColumnName.toLowerCase().replace(/\s+/g, '');
+  const idCol = headers.indexOf(searchColumnName);
+  
+  if (idCol === -1) {
+    throw new Error("Missing '" + idColumnName + "' column in '" + sheet.getName() + "' sheet.");
+  }
+  
+  const idValue = String(id || '').trim().toLowerCase();
+  if (!idValue) { // Don't search for an empty ID
+    return null;
+  }
+
+  for (var i = 1; i < data.length; i++) {
+    const sheetValue = String(data[i][idCol] || '').trim().toLowerCase();
+    if (sheetValue === idValue) {
+      // Re-fetch original headers with original casing for the return object
+      const originalHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+      return { rowIndex: i + 1, rowData: data[i], headers: originalHeaders.map(String), idCol: idCol };
+    }
+  }
+  return null;
+}
+
 
 // --- Action Handlers ---
 
@@ -243,37 +317,20 @@ function handleUpdateOrderStatus(payload) {
   }
   
   const sheet = getSheet(SHEET_NAMES.locationOrders);
-  
-  const dataRange = sheet.getDataRange();
-  const data = dataRange.getValues();
-  const headers = data[0].map(function(h) { return h.trim(); });
+  const rowInfo = findRowById(sheet, orderID, 'OrderID');
 
-  const orderIdCol = headers.indexOf('OrderID'); 
-  const statusCol = headers.indexOf('Status');
-  const officeNotesCol = headers.indexOf('Office Notes');
-  const quantityCol = headers.indexOf('Quantity');
+  if (rowInfo) {
+    const h = rowInfo.headers.map(function(h) { return h.toLowerCase().replace(/\s+/g, '') });
+    const statusCol = h.indexOf('status');
+    const officeNotesCol = h.indexOf('officenotes');
+    const quantityCol = h.indexOf('quantity');
 
-  if (orderIdCol === -1 || statusCol === -1 || officeNotesCol === -1 || quantityCol === -1) {
-    var missingCols = [];
-    if (orderIdCol === -1) missingCols.push("'OrderID'");
-    if (statusCol === -1) missingCols.push("'Status'");
-    if (officeNotesCol === -1) missingCols.push("'Office Notes'");
-    if (quantityCol === -1) missingCols.push("'Quantity'");
-    throw new Error("The following required columns were not found in the 'Location Orders' sheet: " + missingCols.join(', ') + ".");
-  }
-
-  for (var i = 1; i < data.length; i++) {
-    if (data[i][orderIdCol] == orderID) {
-      sheet.getRange(i + 1, statusCol + 1).setValue(status);
-      sheet.getRange(i + 1, officeNotesCol + 1).setValue(officeNotes);
-      
-      // Update quantity if it was provided in the payload
-      if (quantity !== undefined && quantity !== null) {
-          sheet.getRange(i + 1, quantityCol + 1).setValue(quantity);
-      }
-      
-      return { status: 'success', message: 'Order ' + orderID + ' updated successfully.' };
+    if (statusCol !== -1) sheet.getRange(rowInfo.rowIndex, statusCol + 1).setValue(status);
+    if (officeNotesCol !== -1) sheet.getRange(rowInfo.rowIndex, officeNotesCol + 1).setValue(officeNotes);
+    if (quantityCol !== -1 && quantity !== undefined && quantity !== null) {
+      sheet.getRange(rowInfo.rowIndex, quantityCol + 1).setValue(quantity);
     }
+    return { status: 'success', message: 'Order ' + orderID + ' updated successfully.' };
   }
 
   throw new Error('Order ID ' + orderID + ' not found.');
@@ -286,32 +343,188 @@ function handleUpdateOrderStatus(payload) {
 function handleAddLocation(payload) {
   const sheet = getSheet(SHEET_NAMES.locations);
   const newId = generateUniqueId();
-  sheet.appendRow([newId, payload.name, '']); 
+  // Columns: LocationID, Location Name, LocationFullName
+  sheet.appendRow([newId, payload.name, payload.locationFullName || '']); 
   return { status: 'success', message: 'Location added successfully.' };
 }
 
 function handleUpdateLocation(payload) {
   const sheet = getSheet(SHEET_NAMES.locations);
-  const data = sheet.getDataRange().getValues();
-  
-  for (var i = 1; i < data.length; i++) {
-    if (data[i][0] == payload.id) {
-      sheet.getRange(i + 1, 2).setValue(payload.name);
-      return { status: 'success', message: 'Location updated successfully.' };
-    }
+  const rowInfo = findRowById(sheet, payload.id, 'LocationID');
+
+  if (rowInfo) {
+    const h = rowInfo.headers.map(function(h) { return h.toLowerCase().replace(/\s+/g, ''); });
+    const nameCol = h.indexOf('locationname');
+    const fullNameCol = h.indexOf('locationfullname');
+    if (nameCol !== -1) sheet.getRange(rowInfo.rowIndex, nameCol + 1).setValue(payload.name);
+    if (fullNameCol !== -1) sheet.getRange(rowInfo.rowIndex, fullNameCol + 1).setValue(payload.locationFullName || '');
+    return { status: 'success', message: 'Location updated successfully.' };
   }
   throw new Error(`Location ID not found for update: ${payload.id}`);
 }
 
 function handleDeleteLocation(payload) {
   const sheet = getSheet(SHEET_NAMES.locations);
-  const data = sheet.getDataRange().getValues();
-  
-  for (var i = data.length - 1; i >= 1; i--) {
-    if (data[i][0] == payload.id) {
-      sheet.deleteRow(i + 1);
-      return { status: 'success', message: 'Location deleted successfully.' };
-    }
+  // Use the robust, centralized findRowById helper function. Pass 'LocationID' as instructed.
+  const rowInfo = findRowById(sheet, payload.id, 'LocationID');
+
+  if (rowInfo) {
+    // The findRowById function returns the 1-based index, which is what deleteRow needs.
+    sheet.deleteRow(rowInfo.rowIndex);
+    return { status: 'success', message: 'Location deleted successfully.' };
   }
-  throw new Error(`Location ID not found for deletion: ${payload.id}`);
+  
+  // If findRowById returns null, the ID was not found.
+  throw new Error("Location ID not found for deletion: " + payload.id);
+}
+
+
+/**
+ * Handles CRUD operations for product categories.
+ */
+function handleAddCategory(payload) {
+  const sheet = getSheet(SHEET_NAMES.productsCategories);
+  const newId = generateUniqueId();
+  // Columns: CategoryID, Category, Sub-Category, Timestamp
+  sheet.appendRow([newId, payload.category, payload.subCategory, new Date()]); 
+  return { status: 'success', message: 'Category added successfully.' };
+}
+
+function handleUpdateCategory(payload) {
+  const sheet = getSheet(SHEET_NAMES.productsCategories);
+  const rowInfo = findRowById(sheet, payload.categoryID, 'CategoryID');
+
+  if (rowInfo) {
+    const h = rowInfo.headers.map(function(h) { return h.toLowerCase().replace(/\s+/g, ''); });
+    const categoryCol = h.indexOf('category');
+    const subCategoryCol = h.indexOf('sub-category');
+    const timestampCol = h.indexOf('timestamp');
+
+    if (categoryCol !== -1) sheet.getRange(rowInfo.rowIndex, categoryCol + 1).setValue(payload.category);
+    if (subCategoryCol !== -1) sheet.getRange(rowInfo.rowIndex, subCategoryCol + 1).setValue(payload.subCategory);
+    if (timestampCol !== -1) sheet.getRange(rowInfo.rowIndex, timestampCol + 1).setValue(new Date());
+
+    return { status: 'success', message: 'Category updated successfully.' };
+  }
+  throw new Error("Category ID not found for update: " + payload.categoryID);
+}
+
+/**
+ * Handles CRUD operations for users.
+ */
+function handleAddUser(payload) {
+  const sheet = getSheet(SHEET_NAMES.users);
+  const newId = generateUniqueId();
+  // Columns: UserID, Name, Email, Phone, AccessCode, Role, Location
+  sheet.appendRow([
+    newId,
+    payload.name,
+    payload.email,
+    payload.phone,
+    payload.accessCode,
+    payload.role,
+    payload.location
+  ]);
+  return { status: 'success', message: 'User added successfully.' };
+}
+
+function handleUpdateUser(payload) {
+  const sheet = getSheet(SHEET_NAMES.users);
+  const rowInfo = findRowById(sheet, payload.userID, 'UserID');
+
+  if (rowInfo) {
+      const h = rowInfo.headers.map(function(h) { return h.toLowerCase().replace(/\s+/g, ''); });
+      const nameCol = h.indexOf('name');
+      const emailCol = h.indexOf('email');
+      const phoneCol = h.indexOf('phone');
+      const accessCodeCol = h.indexOf('accesscode');
+      const roleCol = h.indexOf('role');
+      const locationCol = h.indexOf('location');
+
+      if (nameCol !== -1) sheet.getRange(rowInfo.rowIndex, nameCol + 1).setValue(payload.name);
+      if (emailCol !== -1) sheet.getRange(rowInfo.rowIndex, emailCol + 1).setValue(payload.email);
+      if (phoneCol !== -1) sheet.getRange(rowInfo.rowIndex, phoneCol + 1).setValue(payload.phone);
+      if (accessCodeCol !== -1) sheet.getRange(rowInfo.rowIndex, accessCodeCol + 1).setValue(payload.accessCode);
+      if (roleCol !== -1) sheet.getRange(rowInfo.rowIndex, roleCol + 1).setValue(payload.role);
+      if (locationCol !== -1) sheet.getRange(rowInfo.rowIndex, locationCol + 1).setValue(payload.location);
+      
+      return { status: 'success', message: 'User updated successfully.' };
+  }
+  throw new Error("User ID not found for update: " + payload.userID);
+}
+
+/**
+ * Handles CRUD operations for products.
+ */
+function handleAddProduct(payload) {
+  const sheet = getSheet(SHEET_NAMES.products);
+  const newId = generateUniqueId();
+  // Columns: ProductID, ProductName, ImageUrl, CreateDate
+  sheet.appendRow([
+    newId,
+    payload.productName,
+    payload.imageUrl,
+    new Date()
+  ]);
+  return { status: 'success', message: 'Product added successfully.' };
+}
+
+function handleUpdateProduct(payload) {
+  const sheet = getSheet(SHEET_NAMES.products);
+  const rowInfo = findRowById(sheet, payload.productID, 'ProductID');
+
+  if (rowInfo) {
+    const h = rowInfo.headers.map(function(h) { return h.toLowerCase().replace(/\s+/g, ''); });
+    const nameCol = h.indexOf('productname');
+    const imageUrlCol = h.indexOf('imageurl');
+
+    if (nameCol !== -1) sheet.getRange(rowInfo.rowIndex, nameCol + 1).setValue(payload.productName);
+    if (imageUrlCol !== -1) sheet.getRange(rowInfo.rowIndex, imageUrlCol + 1).setValue(payload.imageUrl);
+    
+    return { status: 'success', message: 'Product updated successfully.' };
+  }
+  throw new Error("Product ID not found for update: " + payload.productID);
+}
+
+/**
+ * Handles CRUD operations for PRODUCTS_LIST_APPSHEET.
+ * The primary key is the 'Items' column (product name).
+ */
+function handleAddAppSheetProduct(payload) {
+  const sheet = getSheet(SHEET_NAMES.productsListAppsheet);
+  const rowInfo = findRowById(sheet, payload.name, 'Items');
+
+  if (rowInfo) {
+    throw new Error("A product with the name '" + payload.name + "' already exists.");
+  }
+  
+  // Columns: Items, Colors, Category, Sub-Category, Low Stock Threshold
+  sheet.appendRow([
+    payload.name,
+    payload.colors, // Expecting a comma-separated string
+    payload.category,
+    payload.subCategory,
+    payload.lowStockThreshold
+  ]);
+  return { status: 'success', message: 'Product added successfully.' };
+}
+
+function handleUpdateAppSheetProduct(payload) {
+  const sheet = getSheet(SHEET_NAMES.productsListAppsheet);
+  const rowInfo = findRowById(sheet, payload.name, 'Items');
+
+  if (rowInfo) {
+    const h = rowInfo.headers.map(function(h) { return h.toLowerCase().replace(/\s+/g, ''); });
+    const categoryCol = h.indexOf('category');
+    const subCategoryCol = h.indexOf('sub-category');
+    const lowStockCol = h.indexOf('lowstockthreshold');
+
+    // Only update editable fields
+    if (categoryCol !== -1) sheet.getRange(rowInfo.rowIndex, categoryCol + 1).setValue(payload.category);
+    if (subCategoryCol !== -1) sheet.getRange(rowInfo.rowIndex, subCategoryCol + 1).setValue(payload.subCategory);
+    if (lowStockCol !== -1) sheet.getRange(rowInfo.rowIndex, lowStockCol + 1).setValue(payload.lowStockThreshold);
+    
+    return { status: 'success', message: 'Product updated successfully.' };
+  }
+  throw new Error("Product not found for update: " + payload.name);
 }

@@ -12,7 +12,7 @@
  * 6. Copy the final Web App URL and paste it into the `APPS_SCRIPT_URL` constant below.
  * ===============================================================================================
  */
-import { CountEntry, Location, OrderPayload, SubmitWarehouseCountPayload } from '../types';
+import { CountEntry, Location, OrderPayload, ProductCategory, Product, SubmitWarehouseCountPayload, User, AppSheetProduct } from '../types';
 
 // IMPORTANT: Replace this placeholder with your own Google Apps Script Web App URL.
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzmOdNeBoevXAQGD762kxFnr87GvVAxjVq5WT8p7N4SJZRwvZ2BoI645V1PuIOWkwrjsQ/exec';
@@ -90,7 +90,7 @@ const manageLocation = async (action: 'addLocation' | 'updateLocation' | 'delete
   return postToAppsScript(payload);
 };
 
-export const addLocation = async (location: { name: string }): Promise<{ success: boolean; message: string }> => {
+export const addLocation = async (location: { name: string, locationFullName: string }): Promise<{ success: boolean; message: string }> => {
   return manageLocation('addLocation', location);
 };
 
@@ -116,4 +116,46 @@ export const updateOrderStatus = async (payload: { orderID: string; status: stri
         ...payload,
     };
     return postToAppsScript(scriptPayload);
+};
+
+export const addCategory = async (category: { category: string, subCategory: string }): Promise<{ success: boolean; message: string }> => {
+  return postToAppsScript({ action: 'addCategory', ...category });
+};
+
+export const updateCategory = async (category: ProductCategory): Promise<{ success: boolean; message: string }> => {
+  return postToAppsScript({ action: 'updateCategory', ...category });
+};
+
+// --- User Management Functions ---
+
+export const addUser = async (user: Omit<User, 'userID'>): Promise<{ success: boolean; message: string }> => {
+  return postToAppsScript({ action: 'addUser', ...user });
+};
+
+export const updateUser = async (user: User): Promise<{ success: boolean; message: string }> => {
+  return postToAppsScript({ action: 'updateUser', ...user });
+};
+
+// --- Product Management Functions ---
+
+export const addProduct = async (product: { productName: string; imageUrl: string }): Promise<{ success: boolean; message: string }> => {
+  return postToAppsScript({ action: 'addProduct', ...product });
+};
+
+export const updateProduct = async (product: Product): Promise<{ success: boolean; message: string }> => {
+  return postToAppsScript({ action: 'updateProduct', ...product });
+};
+
+// --- AppSheet Product Management Functions ---
+
+export const addAppSheetProduct = async (product: AppSheetProduct): Promise<{ success: boolean; message: string }> => {
+  const payload = {
+    ...product,
+    colors: product.colors.join(', '), // Convert array to comma-separated string
+  };
+  return postToAppsScript({ action: 'addAppSheetProduct', ...payload });
+};
+
+export const updateAppSheetProduct = async (product: Pick<AppSheetProduct, 'name' | 'category' | 'subCategory' | 'lowStockThreshold'>): Promise<{ success: boolean; message: string }> => {
+  return postToAppsScript({ action: 'updateAppSheetProduct', ...product });
 };

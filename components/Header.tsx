@@ -1,14 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Page } from '../types';
 import { BoxIcon, ClipboardListIcon, CogIcon, ChevronDownIcon, HomeIcon, LocationMarkerIcon, LoginIcon, QuestionMarkCircleIcon, TableCellsIcon, TruckIcon, UsersIcon, WarehouseIcon } from './icons';
-import Tooltip from './Tooltip';
 
 interface HeaderProps {
   activePage: Page;
   setActivePage: (page: Page) => void;
+  onLogout: () => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ activePage, setActivePage }) => {
+const Header: React.FC<HeaderProps> = ({ activePage, setActivePage, onLogout }) => {
   const [isManageMenuOpen, setManageMenuOpen] = useState(false);
   const manageMenuRef = useRef<HTMLDivElement>(null);
 
@@ -24,7 +24,6 @@ const Header: React.FC<HeaderProps> = ({ activePage, setActivePage }) => {
     { id: Page.PRODUCTS, label: 'Products', icon: <BoxIcon /> },
     { id: Page.LOCATIONS, label: 'Locations', icon: <LocationMarkerIcon /> },
     { id: Page.USERS, label: 'Users', icon: <UsersIcon /> },
-    { id: Page.LOGIN_PORTAL, label: 'Login Portal', icon: <LoginIcon /> },
     { id: Page.CUSTOMER_SERVICE, label: 'Customer Service', icon: <QuestionMarkCircleIcon /> },
   ];
 
@@ -32,7 +31,6 @@ const Header: React.FC<HeaderProps> = ({ activePage, setActivePage }) => {
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      // Fix: Corrected typo from 'manageMenur' to 'manageMenuRef'
       if (manageMenuRef.current && !manageMenuRef.current.contains(event.target as Node)) {
         setManageMenuOpen(false);
       }
@@ -43,7 +41,6 @@ const Header: React.FC<HeaderProps> = ({ activePage, setActivePage }) => {
     };
   }, []);
 
-  // FIX: Explicitly typed icon props as 'any' to resolve error when passing 'className' with React.cloneElement.
   const NavButton: React.FC<{ item: { id: Page, label: string, icon: React.ReactElement<any> }, isMain?: boolean }> = ({ item, isMain = true }) => {
     const isActive = activePage === item.id;
     const className = isMain 
@@ -100,6 +97,14 @@ const Header: React.FC<HeaderProps> = ({ activePage, setActivePage }) => {
                 )}
               </div>
             </nav>
+          </div>
+          <div className="flex items-center">
+            <button
+              onClick={onLogout}
+              className="ml-4 px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+            >
+              Logout
+            </button>
           </div>
         </div>
       </div>

@@ -1,16 +1,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { InventoryLog as InventoryLogType, Location, CountLog } from '../types';
-import { getInventoryLogs, getLocations, getCountLogs, formatDateToYMD, formatToLocaleString } from '../services/dataService';
+import { InventoryLog as InventoryLogType, Location, CountLog, AppSheetProduct } from '../types';
+import { getInventoryLogs, getLocations, getCountLogs, formatDateToYMD, formatToLocaleString, getAppSheetProducts } from '../services/dataService';
 import LocationTag from './LocationTag';
 import DatePicker from './DatePicker';
 import { ChevronRightIcon } from './icons';
-
-const LOW_STOCK_THRESHOLD = 10;
 
 const InventoryLog: React.FC = () => {
   const [activeTab, setActiveTab] = useState('inventoryByLocation');
   const [logs, setLogs] = useState<InventoryLogType[]>([]);
   const [countLogs, setCountLogs] = useState<CountLog[]>([]);
+  const [appSheetProducts, setAppSheetProducts] = useState<AppSheetProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [locations, setLocations] = useState<Location[]>([]);
   const [selectedLocation, setSelectedLocation] = useState<string>('All');
@@ -23,15 +22,17 @@ const InventoryLog: React.FC = () => {
     const fetchAllLogs = async () => {
       setLoading(true);
       try {
-        const [logsData, locationsData, countLogsData] = await Promise.all([
+        const [logsData, locationsData, countLogsData, appSheetProductsData] = await Promise.all([
           getInventoryLogs(),
           getLocations(),
           getCountLogs(),
+          getAppSheetProducts(),
         ]);
         
         setLogs(logsData.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
         setCountLogs(countLogsData.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
         setLocations(locationsData);
+        setAppSheetProducts(appSheetProductsData);
       } catch (error) {
         console.error("Failed to fetch inventory logs", error);
       } finally {
@@ -71,6 +72,14 @@ const InventoryLog: React.FC = () => {
         return locationMatch && dateMatch;
     });
   }, [countLogs, selectedLocation, selectedDate]);
+  
+  const productThresholdMap = useMemo(() => {
+    const map = new Map<string, number>();
+    appSheetProducts.forEach(p => {
+        map.set(p.name, p.lowStockThreshold);
+    });
+    return map;
+  }, [appSheetProducts]);
 
   const groupedStock = useMemo(() => {
     const latestCounts = new Map<string, { count: number; date: string }>();
@@ -151,7 +160,10 @@ const InventoryLog: React.FC = () => {
         }
 
         const lowItems = products
-            .filter(p => p.stock <= LOW_STOCK_THRESHOLD)
+            .filter(p => {
+              const threshold = productThresholdMap.get(p.productName) ?? 10;
+              return p.stock <= threshold;
+            })
             .sort((a,b) => a.stock - b.stock);
 
         if (lowItems.length > 0) {
@@ -159,7 +171,7 @@ const InventoryLog: React.FC = () => {
         }
     });
     return itemsByLocation;
-  }, [groupedStock, selectedLocation]);
+  }, [groupedStock, selectedLocation, productThresholdMap]);
 
   const clearFilters = () => {
     setSelectedLocation('All');
@@ -307,10 +319,11 @@ const InventoryLog: React.FC = () => {
                     </summary>
                     <div className="border-t border-gray-200 divide-y divide-gray-100">
                         {products.map((item) => {
+                            const threshold = productThresholdMap.get(item.productName) ?? 10;
                             const stockLevelClasses = 
                                 item.stock <= 0 
                                 ? 'bg-red-100 text-red-800'
-                                : item.stock <= LOW_STOCK_THRESHOLD 
+                                : item.stock <= threshold
                                 ? 'bg-yellow-100 text-yellow-800'
                                 : 'bg-green-100 text-green-800';
 

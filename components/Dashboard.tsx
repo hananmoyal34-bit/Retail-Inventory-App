@@ -2,6 +2,8 @@
 
 
 
+
+
 import React, { useMemo, useState, useEffect } from 'react';
 import { Page, Product, InventoryLog, User, LocationOrder, CountLog, WarehouseCountLog, AppSheetProduct } from '../types';
 import { getProducts, getInventoryLogs, getUsers, getLocationOrders, formatDateToYMD, getCountLogs, getWarehouseCountLogs, getAppSheetProducts } from '../services/dataService';
@@ -11,8 +13,6 @@ import LocationTag from './LocationTag';
 interface DashboardProps {
   setActivePage: (page: Page) => void;
 }
-
-const LOW_STOCK_THRESHOLD = 10;
 
 // --- Reusable Styled Components ---
 
@@ -77,27 +77,42 @@ const OpenOrdersCard: React.FC<{
 const LowStockCard: React.FC<{
     warehouseStock: Record<string, { productName: string; totalStock: number }[]>;
     locationStock: Record<string, { productName: string; stock: number }[]>;
+    appSheetProducts: AppSheetProduct[];
     onNavigate: () => void;
-}> = ({ warehouseStock, locationStock, onNavigate }) => {
+}> = ({ warehouseStock, locationStock, appSheetProducts, onNavigate }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [activeTab, setActiveTab] = useState('warehouse');
+
+    const productThresholdMap = useMemo(() => {
+        const map = new Map<string, number>();
+        appSheetProducts.forEach(p => {
+            map.set(p.name, p.lowStockThreshold);
+        });
+        return map;
+    }, [appSheetProducts]);
 
     const lowStockWarehouseItems = useMemo(() => {
         if (!warehouseStock || Object.keys(warehouseStock).length === 0) return [];
         
         return Object.values(warehouseStock)
             .flat()
-            .filter(p => p.totalStock <= LOW_STOCK_THRESHOLD)
+            .filter(p => {
+                const threshold = productThresholdMap.get(p.productName) ?? 10;
+                return p.totalStock <= threshold;
+            })
             .map(p => ({ productName: p.productName, stock: p.totalStock }))
             .sort((a, b) => a.stock - b.stock || a.productName.localeCompare(b.productName));
             
-    }, [warehouseStock]);
+    }, [warehouseStock, productThresholdMap]);
 
     const lowStockLocationItems = useMemo(() => {
         const itemsByLocation: Record<string, { productName: string; stock: number }[]> = {};
         Object.entries(locationStock).forEach(([location, products]) => {
             const lowItems = products
-                .filter(p => p.stock <= LOW_STOCK_THRESHOLD)
+                .filter(p => {
+                    const threshold = productThresholdMap.get(p.productName) ?? 10;
+                    return p.stock <= threshold;
+                })
                 .sort((a,b) => a.stock - b.stock);
 
             if (lowItems.length > 0) {
@@ -105,7 +120,7 @@ const LowStockCard: React.FC<{
             }
         });
         return itemsByLocation;
-    }, [locationStock]);
+    }, [locationStock, productThresholdMap]);
 
     const totalLowStockItems = lowStockWarehouseItems.length + Object.values(lowStockLocationItems).flat().length;
 
@@ -308,6 +323,14 @@ const Dashboard: React.FC<DashboardProps> = ({ setActivePage }) => {
     return { openOrdersByLocation: items, totalOpenOrders: total };
   }, [locationOrders]);
 
+  const productThresholdMap = useMemo(() => {
+    const map = new Map<string, number>();
+    appSheetProducts.forEach(p => {
+        map.set(p.name, p.lowStockThreshold);
+    });
+    return map;
+  }, [appSheetProducts]);
+
 
   const groupedStock = useMemo(() => {
     const latestCounts = new Map<string, { count: number; date: string }>();
@@ -478,7 +501,7 @@ const Dashboard: React.FC<DashboardProps> = ({ setActivePage }) => {
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <OpenOrdersCard total={totalOpenOrders} items={openOrdersByLocation} onNavigate={() => setActivePage(Page.ORDERS)} />
-            <LowStockCard warehouseStock={warehouseStock} locationStock={groupedStock} onNavigate={() => setActivePage(Page.LOW_STOCK_PRODUCTS)} />
+            <LowStockCard warehouseStock={warehouseStock} locationStock={groupedStock} appSheetProducts={appSheetProducts} onNavigate={() => setActivePage(Page.PRODUCTS)} />
             <ProductListCard products={appSheetProducts} onNavigate={() => setActivePage(Page.PRODUCTS)} />
         </div>
 
@@ -523,10 +546,10 @@ const Dashboard: React.FC<DashboardProps> = ({ setActivePage }) => {
                         <button
                             onClick={() => setActivePage(Page.INVENTORY_LOG)}
                             className="px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-100 rounded-md hover:bg-indigo-200 transition-colors flex items-center gap-1.5"
-                            aria-label="Navigate to Locations Inventory page"
+                            aria-label="Open Locations Inventory page"
                         >
                             <ClipboardListIcon className="h-4 w-4" />
-                            <span>Navigate to Locations Inventory</span>
+                            <span>Open</span>
                         </button>
                         <div className="flex space-x-2">
                             <button onClick={() => setExpandedStockLocations(new Set(Object.keys(groupedStock)))} className="px-3 py-1 text-xs font-medium text-indigo-700 bg-indigo-100 rounded-md">Expand All</button>
@@ -548,10 +571,11 @@ const Dashboard: React.FC<DashboardProps> = ({ setActivePage }) => {
                         </summary>
                         <div className="border-t border-gray-200 divide-y divide-gray-100">
                             {products.map((item) => {
+                                const threshold = productThresholdMap.get(item.productName) ?? 10;
                                 const stockLevelClasses = 
                                     item.stock <= 0 
                                     ? 'bg-red-100 text-red-800'
-                                    : item.stock <= LOW_STOCK_THRESHOLD 
+                                    : item.stock <= threshold 
                                     ? 'bg-yellow-100 text-yellow-800'
                                     : 'bg-green-100 text-green-800';
 
@@ -580,10 +604,10 @@ const Dashboard: React.FC<DashboardProps> = ({ setActivePage }) => {
                         <button
                             onClick={() => setActivePage(Page.WAREHOUSE_INVENTORY)}
                             className="px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-100 rounded-md hover:bg-indigo-200 transition-colors flex items-center gap-1.5"
-                            aria-label="Navigate to Warehouse Inventory page"
+                            aria-label="Open Warehouse Inventory page"
                         >
                             <WarehouseIcon className="h-4 w-4" />
-                            <span>Navigate to Warehouse Inventory</span>
+                            <span>Open</span>
                         </button>
                         <div className="flex space-x-2">
                             <button onClick={() => setExpandedWarehouseCategories(new Set(Object.keys(warehouseStock)))} className="px-3 py-1 text-xs font-medium text-indigo-700 bg-indigo-100 rounded-md">Expand All</button>
@@ -624,10 +648,11 @@ const Dashboard: React.FC<DashboardProps> = ({ setActivePage }) => {
                                             </span>
                                         </div>
                                         {colors.map((item) => {
+                                            const threshold = productThresholdMap.get(productName) ?? 10;
                                             const stockLevelClasses = 
                                                 item.quantity <= 0 
                                                 ? 'bg-red-100 text-red-800'
-                                                : item.quantity <= LOW_STOCK_THRESHOLD 
+                                                : item.quantity <= threshold
                                                 ? 'bg-yellow-100 text-yellow-800'
                                                 : 'bg-green-100 text-green-800';
 
