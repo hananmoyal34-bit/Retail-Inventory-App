@@ -12,7 +12,7 @@
  * 6. Copy the final Web App URL and paste it into the `APPS_SCRIPT_URL` constant below.
  * ===============================================================================================
  */
-import { CountEntry, Location, OrderPayload, ProductCategory, Product, SubmitWarehouseCountPayload, User, AppSheetProduct } from '../types';
+import { CountEntry, Location, OrderPayload, ProductCategory, Product, SubmitWarehouseCountPayload, User, AppSheetProduct, Account } from '../types';
 
 // IMPORTANT: Replace this placeholder with your own Google Apps Script Web App URL.
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzmOdNeBoevXAQGD762kxFnr87GvVAxjVq5WT8p7N4SJZRwvZ2BoI645V1PuIOWkwrjsQ/exec';
@@ -139,6 +139,20 @@ export const fetchProductCategories = async (): Promise<ProductCategory[]> => {
   return [];
 };
 
+export const fetchAppSheetProducts = async (): Promise<AppSheetProduct[]> => {
+  const result = await postToAppsScript({ action: 'getAppSheetProducts' });
+  if (result.success && Array.isArray(result.data)) {
+    // The Apps Script will return an array of objects that match AppSheetProduct
+    return result.data.map((p: any) => ({
+      ...p,
+      // Ensure lowStockThreshold is a number, as it might come back as a string from JSON
+      lowStockThreshold: Number(p.lowStockThreshold) || 10
+    }));
+  }
+  console.error("Failed to fetch AppSheet products from script:", result.message);
+  return [];
+};
+
 
 // --- User Management Functions ---
 
@@ -148,6 +162,10 @@ export const addUser = async (user: Omit<User, 'userID'>): Promise<{ success: bo
 
 export const updateUser = async (user: User): Promise<{ success: boolean; message: string }> => {
   return postToAppsScript({ action: 'updateUser', ...user });
+};
+
+export const deleteUser = async (userId: string): Promise<{ success: boolean; message: string }> => {
+  return postToAppsScript({ action: 'deleteUser', userID: userId });
 };
 
 // --- Product Management Functions ---
@@ -172,4 +190,17 @@ export const addAppSheetProduct = async (product: AppSheetProduct): Promise<{ su
 
 export const updateAppSheetProduct = async (product: Pick<AppSheetProduct, 'name' | 'category' | 'subCategory' | 'lowStockThreshold'>): Promise<{ success: boolean; message: string }> => {
   return postToAppsScript({ action: 'updateAppSheetProduct', ...product });
+};
+
+// --- Account Management Functions ---
+export const addAccount = async (accountData: Omit<Account, 'accountID' | 'timestamp'>): Promise<{ success: boolean; message: string }> => {
+  return postToAppsScript({ action: 'addAccount', ...accountData });
+};
+
+export const updateAccount = async (accountData: Account): Promise<{ success: boolean; message: string }> => {
+  return postToAppsScript({ action: 'updateAccount', ...accountData });
+};
+
+export const deleteAccount = async (accountID: string): Promise<{ success: boolean; message: string }> => {
+  return postToAppsScript({ action: 'deleteAccount', accountID });
 };

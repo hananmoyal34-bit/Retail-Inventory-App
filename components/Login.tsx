@@ -3,7 +3,7 @@ import { User } from '../types';
 import { getUsers } from '../services/dataService';
 
 interface LoginProps {
-  role: 'Admin' | 'Manager' | 'Office';
+  role: 'Admin' | 'Manager' | 'Office' | 'Accounting';
   onLogin: (user: User) => void;
   onBack: () => void;
 }

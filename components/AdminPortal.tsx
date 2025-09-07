@@ -10,6 +10,7 @@ import WarehouseInventory from './WarehouseInventory';
 import Locations from './Locations';
 import ManagerPortal from './ManagerPortal';
 import CustomerService from './CustomerService';
+import AccountsView from './AccountsView';
 import MobileNavMenu from './MobileNavMenu';
 import { Page } from '../types';
 import { initializeAppConfig } from '../services/dataService';
@@ -48,6 +49,8 @@ const AdminPortal: React.FC<AdminPortalProps> = ({ onLogout }) => {
         return <Orders />;
       case Page.LOCATIONS:
         return <Locations />;
+      case Page.ACCOUNTS:
+        return <AccountsView />;
       case Page.CUSTOMER_SERVICE:
         return <CustomerService />;
       default:

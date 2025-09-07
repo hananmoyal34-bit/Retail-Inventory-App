@@ -14,7 +14,8 @@ import {
     LoginIcon,
     QuestionMarkCircleIcon,
     ChevronDownIcon,
-    WarehouseIcon
+    WarehouseIcon,
+    DocumentTextIcon
 } from './icons';
 
 interface MobileNavMenuProps {
@@ -35,6 +36,7 @@ const manageNavItems = [
     { id: Page.PRODUCTS, label: 'Products', icon: <BoxIcon /> },
     { id: Page.LOCATIONS, label: 'Locations', icon: <LocationMarkerIcon /> },
     { id: Page.USERS, label: 'Users', icon: <UsersIcon /> },
+    { id: Page.ACCOUNTS, label: 'Accounts', icon: <DocumentTextIcon /> },
     { id: Page.CUSTOMER_SERVICE, label: 'Customer Service', icon: <QuestionMarkCircleIcon /> },
 ];
 

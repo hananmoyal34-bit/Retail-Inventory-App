@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { getProducts, getLocations, getInventoryLogs, getCurrentDateInTimezone, formatDateToYMD, getAppSheetProducts, formatToLocaleString } from '../services/dataService';
+import { getProducts, getLocations, getInventoryLogs, getCurrentDateInTimezone, formatDateToYMD, getAppSheetProducts, formatToLocaleString, getCountLogs } from '../services/dataService';
 import { submitInventoryCount, submitWarehouseCount } from '../services/writeService';
 // FIX: Import User type to handle user information for warehouse count submission.
-import { CountEntry, Product, Location, InventoryLog, WarehouseCountEntry, AppSheetProduct, User } from '../types';
+import { CountEntry, Product, Location, InventoryLog, WarehouseCountEntry, AppSheetProduct, User, CountLog } from '../types';
 import AccessibleNumberInput from './AccessibleNumberInput';
 import DatePicker from './DatePicker';
 import Modal from './Modal';
@@ -20,6 +20,7 @@ const InventoryCount: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
   const [inventoryLogs, setInventoryLogs] = useState<InventoryLog[]>([]);
+  const [countLogs, setCountLogs] = useState<CountLog[]>([]);
   const [loading, setLoading] = useState(true);
   
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -45,11 +46,12 @@ const InventoryCount: React.FC = () => {
     setTouchedRows(new Set());
     setWarehouseSelections({});
     try {
-      const [productsData, locationsData, logsData, appSheetProductsData] = await Promise.all([
+      const [productsData, locationsData, logsData, appSheetProductsData, countsData] = await Promise.all([
         getProducts(),
         getLocations(),
         getInventoryLogs(),
         getAppSheetProducts(),
+        getCountLogs(),
       ]);
       setProducts(productsData);
       setLocations(locationsData);
@@ -59,6 +61,7 @@ const InventoryCount: React.FC = () => {
         setSelectedLocation(locationsData[0].name);
       }
       setInventoryLogs(logsData);
+      setCountLogs(countsData);
     } catch (error) {
       console.error("Failed to fetch data for inventory count", error);
       setSubmissionStatus({ type: 'error', message: 'Failed to load data.' });
@@ -77,17 +80,68 @@ const InventoryCount: React.FC = () => {
   }, []);
   
   const openingStock = useMemo(() => {
-    const stockMap = new Map<string, number>();
-    inventoryLogs.filter(log => {
-        if (log.location !== selectedLocation) return false;
-        const logDate = formatDateToYMD(log.date);
-        return logDate && logDate < date;
-      })
+    if (loading) return new Map<string, number>();
+
+    // 1. Find the latest physical count for each product BEFORE the selected date.
+    const latestCounts = new Map<string, { count: number; date: string }>();
+    countLogs
+      .filter(log => log.location === selectedLocation && formatDateToYMD(log.date) < date)
       .forEach(log => {
-        stockMap.set(log.productName, (stockMap.get(log.productName) || 0) + log.quantity);
+        const logYMD = formatDateToYMD(log.date);
+        if (!logYMD) return;
+
+        const existing = latestCounts.get(log.productName);
+        if (!existing || logYMD > existing.date) {
+          latestCounts.set(log.productName, { count: log.physicalEndCount, date: logYMD });
+        }
       });
+      
+    const stockMap = new Map<string, number>();
+
+    // We only need to calculate for products that will be displayed.
+    const productNames = new Set(products.map(p => p.productName));
+
+    // 2. For each product, calculate opening stock.
+    productNames.forEach(productName => {
+        const lastCount = latestCounts.get(productName);
+
+        if (lastCount) {
+            // Case 1: A previous count exists. Start with the last count's value.
+            let stock = lastCount.count;
+
+            // Find all transactions that happened AFTER the last count but BEFORE the selected date.
+            const subsequentTransactions = inventoryLogs.filter(log => {
+                if (log.location !== selectedLocation || log.productName !== productName) return false;
+                const logYMD = formatDateToYMD(log.date);
+                // After last count date, but before the new count date
+                return logYMD && logYMD > lastCount.date && logYMD < date;
+            });
+            
+            // Apply the subsequent transactions.
+            subsequentTransactions.forEach(log => {
+                stock += log.quantity;
+            });
+
+            stockMap.set(productName, stock);
+        } else {
+            // Case 2: No previous count exists. Sum all transactions from the beginning up to the selected date.
+            let stock = 0;
+            inventoryLogs
+              .filter(log => {
+                  if (log.location !== selectedLocation || log.productName !== productName) return false;
+                  const logDate = formatDateToYMD(log.date);
+                  return logDate && logDate < date;
+              })
+              .forEach(log => {
+                  stock += log.quantity;
+              });
+            stockMap.set(productName, stock);
+        }
+    });
+
     return stockMap;
-  }, [date, selectedLocation, inventoryLogs]);
+
+  }, [date, selectedLocation, inventoryLogs, countLogs, products, loading]);
   
   useEffect(() => {
     if (loading || products.length === 0) return;
@@ -605,6 +659,23 @@ const InventoryCount: React.FC = () => {
 
                         {isExpanded && (
                             <div className="p-4 border-t space-y-4">
+                                <div className="bg-indigo-50 p-3 rounded-md">
+                                  <div className="flex flex-wrap justify-between items-center gap-2">
+                                    <label htmlFor={`physical-count-${entry.productID}`} className="text-base font-semibold text-indigo-800">Physical End Count</label>
+                                    <AccessibleNumberInput 
+                                      id={`physical-count-${entry.productID}`}
+                                      value={entry.physicalEndCount} 
+                                      onChange={(newValue) => handleEntryChange(entry.productID, 'physicalEndCount', newValue)} 
+                                      inputClassName="bg-yellow-100 font-semibold" 
+                                      ariaLabel={`Physical end count for ${entry.productName}`} 
+                                    />
+                                  </div>
+                                  <div className="mt-3 flex justify-between items-center text-sm">
+                                    <span className="text-gray-600">Calculated End: <strong className="text-gray-800">{calculatedEndCount}</strong></span>
+                                    <span className="text-gray-600">Variance: <strong className="text-lg">{renderVariance(entry)}</strong></span>
+                                  </div>
+                                </div>
+
                                 <div className="flex justify-between items-center bg-gray-50 p-2 rounded-md">
                                     <div className="text-sm">
                                         <span className="font-medium text-gray-600">Opening Stock</span>
@@ -637,23 +708,6 @@ const InventoryCount: React.FC = () => {
                                         <p className="block text-sm font-medium text-gray-700 mb-1">Shipping (-)</p>
                                         <AccessibleNumberInput value={entry.warehouseShipping} onChange={(newValue) => handleEntryChange(entry.productID, 'warehouseShipping', newValue)} ariaLabel={`Warehouse shipping for ${entry.productName}`} />
                                     </div>
-                                </div>
-        
-                                <div className="bg-indigo-50 p-3 rounded-md">
-                                  <div className="flex flex-wrap justify-between items-center gap-2">
-                                    <label htmlFor={`physical-count-${entry.productID}`} className="text-base font-semibold text-indigo-800">Physical End Count</label>
-                                    <AccessibleNumberInput 
-                                      id={`physical-count-${entry.productID}`}
-                                      value={entry.physicalEndCount} 
-                                      onChange={(newValue) => handleEntryChange(entry.productID, 'physicalEndCount', newValue)} 
-                                      inputClassName="bg-yellow-100 font-semibold" 
-                                      ariaLabel={`Physical end count for ${entry.productName}`} 
-                                    />
-                                  </div>
-                                  <div className="mt-3 flex justify-between items-center text-sm">
-                                    <span className="text-gray-600">Calculated End: <strong className="text-gray-800">{calculatedEndCount}</strong></span>
-                                    <span className="text-gray-600">Variance: <strong className="text-lg">{renderVariance(entry)}</strong></span>
-                                  </div>
                                 </div>
                             </div>
                         )}

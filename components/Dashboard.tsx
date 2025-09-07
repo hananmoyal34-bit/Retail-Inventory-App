@@ -1,10 +1,6 @@
 
 
-
-
-
-
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { Page, Product, InventoryLog, User, LocationOrder, CountLog, WarehouseCountLog, AppSheetProduct } from '../types';
 import { getProducts, getInventoryLogs, getUsers, getLocationOrders, formatDateToYMD, getCountLogs, getWarehouseCountLogs, getAppSheetProducts } from '../services/dataService';
 import { BoxIcon, ChartBarIcon, TruckIcon, ChevronDownIcon, ClipboardListIcon, WarehouseIcon } from './icons';
@@ -274,36 +270,40 @@ const Dashboard: React.FC<DashboardProps> = ({ setActivePage }) => {
   // State for expand/collapse functionality
   const [expandedStockLocations, setExpandedStockLocations] = useState<Set<string>>(new Set());
   const [expandedWarehouseCategories, setExpandedWarehouseCategories] = useState<Set<string>>(new Set());
+  
+  // State for live data
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+        const [productsData, logsData, usersData, ordersData, counts, warehouseLogsData, appSheetProductsData] = await Promise.all([
+            getProducts(),
+            getInventoryLogs(),
+            getUsers(),
+            getLocationOrders(),
+            getCountLogs(),
+            getWarehouseCountLogs(),
+            getAppSheetProducts(),
+        ]);
+        setProducts(productsData);
+        setInventoryLogs(logsData);
+        setUsers(usersData);
+        setLocationOrders(ordersData);
+        setCountLogs(counts);
+        setWarehouseCountLogs(warehouseLogsData);
+        setAppSheetProducts(appSheetProductsData);
+        setLastUpdated(new Date());
+    } catch (error) {
+        console.error("Failed to fetch dashboard data", error);
+    } finally {
+        setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    const fetchData = async () => {
-        setLoading(true);
-        try {
-            const [productsData, logsData, usersData, ordersData, counts, warehouseLogsData, appSheetProductsData] = await Promise.all([
-                getProducts(),
-                getInventoryLogs(),
-                getUsers(),
-                getLocationOrders(),
-                getCountLogs(),
-                getWarehouseCountLogs(),
-                getAppSheetProducts(),
-            ]);
-            setProducts(productsData);
-            setInventoryLogs(logsData);
-            setUsers(usersData);
-            setLocationOrders(ordersData);
-            setCountLogs(counts);
-            setWarehouseCountLogs(warehouseLogsData);
-            setAppSheetProducts(appSheetProductsData);
-        } catch (error) {
-            console.error("Failed to fetch dashboard data", error);
-        } finally {
-            setLoading(false);
-        }
-    };
-    fetchData();
-  }, []);
+    fetchData(); // This runs every time the component mounts (when tab is opened)
+  }, [fetchData]);
   
   const { openOrdersByLocation, totalOpenOrders } = useMemo(() => {
     const locationCounts = new Map<string, number>();
@@ -497,7 +497,20 @@ const Dashboard: React.FC<DashboardProps> = ({ setActivePage }) => {
 
   return (
     <div className="space-y-6">
-        <h2 className="text-3xl font-bold text-gray-900">Dashboard</h2>
+        <div className="flex justify-between items-center flex-wrap gap-2">
+            <h2 className="text-3xl font-bold text-gray-900">Dashboard</h2>
+            {lastUpdated && (
+                <div className="flex items-center gap-2 text-sm text-gray-500 bg-white/50 px-3 py-1 rounded-full">
+                    <div
+                        className="w-2.5 h-2.5 rounded-full bg-green-500"
+                        title="Live"
+                    ></div>
+                    <span>
+                        Last updated: {lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                </div>
+            )}
+        </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <OpenOrdersCard total={totalOpenOrders} items={openOrdersByLocation} onNavigate={() => setActivePage(Page.ORDERS)} />
@@ -542,19 +555,9 @@ const Dashboard: React.FC<DashboardProps> = ({ setActivePage }) => {
             
             {activeStockTab === 'locations' && (
                 <div className="space-y-4 pt-4">
-                    <div className="flex justify-between items-center mb-2">
-                        <button
-                            onClick={() => setActivePage(Page.INVENTORY_LOG)}
-                            className="px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-100 rounded-md hover:bg-indigo-200 transition-colors flex items-center gap-1.5"
-                            aria-label="Open Locations Inventory page"
-                        >
-                            <ClipboardListIcon className="h-4 w-4" />
-                            <span>Open</span>
-                        </button>
-                        <div className="flex space-x-2">
-                            <button onClick={() => setExpandedStockLocations(new Set(Object.keys(groupedStock)))} className="px-3 py-1 text-xs font-medium text-indigo-700 bg-indigo-100 rounded-md">Expand All</button>
-                            <button onClick={() => setExpandedStockLocations(new Set())} className="px-3 py-1 text-xs font-medium text-gray-700 bg-gray-200 rounded-md">Collapse All</button>
-                        </div>
+                    <div className="flex justify-end space-x-2 mb-2">
+                        <button onClick={() => setExpandedStockLocations(new Set(Object.keys(groupedStock)))} className="px-3 py-1 text-xs font-medium text-indigo-700 bg-indigo-100 rounded-md">Expand All</button>
+                        <button onClick={() => setExpandedStockLocations(new Set())} className="px-3 py-1 text-xs font-medium text-gray-700 bg-gray-200 rounded-md">Collapse All</button>
                     </div>
                     {Object.keys(groupedStock).length > 0 ? Object.entries(groupedStock).map(([location, products]) => (
                     <details key={location} className="bg-white shadow-lg rounded-xl overflow-hidden group transition-all duration-300" open={expandedStockLocations.has(location)}>
@@ -600,15 +603,7 @@ const Dashboard: React.FC<DashboardProps> = ({ setActivePage }) => {
 
             {activeStockTab === 'warehouse' && (
                 <div className="space-y-4 pt-4">
-                     <div className="flex justify-between items-center mb-2">
-                        <button
-                            onClick={() => setActivePage(Page.WAREHOUSE_INVENTORY)}
-                            className="px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-100 rounded-md hover:bg-indigo-200 transition-colors flex items-center gap-1.5"
-                            aria-label="Open Warehouse Inventory page"
-                        >
-                            <WarehouseIcon className="h-4 w-4" />
-                            <span>Open</span>
-                        </button>
+                     <div className="flex justify-end items-center mb-2">
                         <div className="flex space-x-2">
                             <button onClick={() => setExpandedWarehouseCategories(new Set(Object.keys(warehouseStock)))} className="px-3 py-1 text-xs font-medium text-indigo-700 bg-indigo-100 rounded-md">Expand All</button>
                             <button onClick={() => setExpandedWarehouseCategories(new Set())} className="px-3 py-1 text-xs font-medium text-gray-700 bg-gray-200 rounded-md">Collapse All</button>

@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { User, Location } from '../types';
 import { getUsers, getLocations } from '../services/dataService';
-import { addUser, updateUser } from '../services/writeService';
+import { addUser, updateUser, deleteUser } from '../services/writeService';
 import LocationTag from './LocationTag';
 import Modal from './Modal';
-import { PencilIcon, PlusIcon, DuplicateIcon } from './icons';
+import { PencilIcon, PlusIcon, DuplicateIcon, TrashIcon } from './icons';
 
 const Users: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
@@ -119,12 +119,27 @@ const Users: React.FC = () => {
       setError(result.message);
     }
   };
+
+  const handleDelete = async (user: User) => {
+    if (window.confirm(`Are you sure you want to delete the user "${user.name}"? This action cannot be undone.`)) {
+      setIsSubmitting(true);
+      setError(null);
+      const result = await deleteUser(user.userID);
+      setIsSubmitting(false);
+      if (result.success) {
+        await fetchUsersAndLocations();
+      } else {
+        alert(`Failed to delete user: ${result.message}`);
+      }
+    }
+  };
   
   const RoleBadge: React.FC<{ role: string }> = ({ role }) => {
     const styles: { [key: string]: string } = {
         'Admin': 'bg-red-100 text-red-800',
         'Manager': 'bg-blue-100 text-blue-800',
         'Office': 'bg-green-100 text-green-800',
+        'Accounting': 'bg-purple-100 text-purple-800',
     };
     const style = styles[role] || 'bg-gray-100 text-gray-800';
     return <span className={`px-2 py-1 text-xs font-semibold rounded-full ${style}`}>{role}</span>;
@@ -198,6 +213,9 @@ const Users: React.FC = () => {
                     <button onClick={() => openModalForDuplicate(user)} className="text-green-600 hover:text-green-900 p-1 rounded-md hover:bg-green-100 disabled:opacity-50" disabled={isSubmitting}>
                       <DuplicateIcon className="h-5 w-5"/>
                     </button>
+                    <button onClick={() => handleDelete(user)} className="text-red-600 hover:text-red-900 p-1 rounded-md hover:bg-red-100 disabled:opacity-50" disabled={isSubmitting}>
+                      <TrashIcon className="h-5 w-5"/>
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -218,6 +236,7 @@ const Users: React.FC = () => {
                     <div className="flex items-center space-x-1 flex-shrink-0">
                         <button onClick={() => openModalForEdit(user)} className="p-2 text-indigo-600 hover:bg-indigo-100 rounded-full disabled:opacity-50" disabled={isSubmitting}><PencilIcon className="h-5 w-5" /></button>
                         <button onClick={() => openModalForDuplicate(user)} className="p-2 text-green-600 hover:bg-green-100 rounded-full disabled:opacity-50" disabled={isSubmitting}><DuplicateIcon className="h-5 w-5" /></button>
+                        <button onClick={() => handleDelete(user)} className="p-2 text-red-600 hover:bg-red-100 rounded-full disabled:opacity-50" disabled={isSubmitting}><TrashIcon className="h-5 w-5" /></button>
                     </div>
                 </div>
                 <div className="text-sm text-gray-600 border-t pt-3">
@@ -249,6 +268,7 @@ const Users: React.FC = () => {
                     <option>Manager</option>
                     <option>Office</option>
                     <option>Admin</option>
+                    <option>Accounting</option>
                 </select>
             </div>
             <div>

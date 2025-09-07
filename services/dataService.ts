@@ -1,6 +1,6 @@
 import { readSheet } from './googleSheetService';
-import { Product, User, Location, InventoryLog, LocationOrder, CountLog, ShippingData, AppSheetProduct, WarehouseCountLog, ProductCategory } from '../types';
-import { fetchProductCategories } from './writeService';
+import { Product, User, Location, InventoryLog, LocationOrder, CountLog, ShippingData, AppSheetProduct, WarehouseCountLog, ProductCategory, Account } from '../types';
+import { fetchProductCategories, fetchAppSheetProducts } from './writeService';
 
 export let TIMEZONE = 'America/Los_Angeles'; // Default timezone, will be overwritten by config.
 
@@ -82,6 +82,32 @@ export const formatDateToYMD = (date: string | Date): string | null => {
 };
 
 /**
+ * Formats a given date string or object into a 'MM/DD/YYYY' string in the specified timezone.
+ * @param date - The date to format.
+ * @returns {string | null} A date string in MM/DD/YYYY format, or null if the date is invalid.
+ */
+export const formatDateToMDY = (date: string | Date): string | null => {
+    if (!date) return null;
+    try {
+        const d = new Date(date);
+        // Check if the date is valid. new Date('invalid') results in an Invalid Date object.
+        if (isNaN(d.getTime())) return null;
+
+        const formatter = new Intl.DateTimeFormat('en-US', {
+            timeZone: TIMEZONE,
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+        });
+        return formatter.format(d);
+    } catch (e) {
+        console.warn(`Could not parse or format date: ${date}`);
+        return null;
+    }
+};
+
+
+/**
  * Formats a given date string or object into a locale string with time (AM/PM) in the specified timezone.
  * e.g., "6/5/2024, 5:30:45 PM"
  * @param date - The date to format.
@@ -118,10 +144,12 @@ const SHEET_NAMES = {
   productsListAppsheet: 'PRODUCTS_LIST_APPSHEET',
   warehouseCount: 'Warehouse Count',
   productsCategories: 'PRODUCTS_CATEGORIES',
+  accounts: 'Accounts',
 };
 
 // Helper to parse data safely.
 const safeParseInt = (val: string) => val ? parseInt(val.trim(), 10) : 0;
+const safeParseFloat = (val: string) => val ? parseFloat(val.trim().replace(/[^0-9.-]+/g,"")) : 0;
 const safeParseString = (val: any) => val ? String(val) : '';
 
 export const getProducts = async (): Promise<Product[]> => {
@@ -138,20 +166,8 @@ export const getProducts = async (): Promise<Product[]> => {
 };
 
 export const getAppSheetProducts = async (): Promise<AppSheetProduct[]> => {
-  const data = await readSheet(SHEET_NAMES.productsListAppsheet);
-  if (data.length <= 1) return []; // No data beyond header
-  const rows = data.slice(1);
-  return rows.map(row => {
-    const colorsString = safeParseString(row[1]);
-    const threshold = parseInt(safeParseString(row[4]), 10);
-    return {
-      name: safeParseString(row[0]),
-      colors: colorsString ? colorsString.split(',').map(c => c.trim()) : [],
-      category: safeParseString(row[2]),
-      subCategory: safeParseString(row[3]),
-      lowStockThreshold: !isNaN(threshold) ? threshold : 10,
-    };
-  }).filter(p => p.name && p.category); // Filter out empty/invalid rows
+  // Use the direct script fetch to avoid gviz caching issues.
+  return await fetchAppSheetProducts();
 };
 
 export const getProductCategories = async (): Promise<ProductCategory[]> => {
@@ -278,4 +294,29 @@ export const getShippingData = async (): Promise<ShippingData[]> => {
             return false;
         }
     });
+};
+
+export const getAccounts = async (): Promise<Account[]> => {
+    const data = await readSheet(SHEET_NAMES.accounts);
+    if (data.length <= 1) return [];
+    const rows = data.slice(1);
+    return rows.map(row => ({
+      accountID: safeParseString(row[0]),
+      accountType: safeParseString(row[1]),
+      subCategory: safeParseString(row[2]),
+      company: safeParseString(row[3]),
+      location: safeParseString(row[4]),
+      locationNumber: safeParseString(row[5]),
+      expiration: safeParseString(row[6]),
+      amountDue: safeParseFloat(row[7]),
+      billingType: safeParseString(row[8]),
+      billingAmount: safeParseFloat(row[9]),
+      paymentMethod: safeParseString(row[10]),
+      licenseNumber: safeParseString(row[11]),
+      insuranceCarrier: safeParseString(row[12]),
+      insuranceBroker: safeParseString(row[13]),
+      notes: safeParseString(row[14]),
+      status: safeParseString(row[15]),
+      timestamp: safeParseString(row[16]),
+    })).filter(acc => acc.accountID);
 };

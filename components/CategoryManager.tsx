@@ -3,7 +3,7 @@ import { ProductCategory } from '../types';
 import { getProductCategories } from '../services/dataService';
 import { addCategory, updateCategory, deleteCategory } from '../services/writeService';
 import Modal from './Modal';
-import { PencilIcon, PlusIcon, TrashIcon } from './icons';
+import { PencilIcon, PlusIcon, TrashIcon, XIcon } from './icons';
 
 const CategoryManager: React.FC = () => {
   const [categories, setCategories] = useState<ProductCategory[]>([]);
@@ -12,7 +12,8 @@ const CategoryManager: React.FC = () => {
   const [editingCategory, setEditingCategory] = useState<ProductCategory | null>(null);
   
   const [categoryName, setCategoryName] = useState('');
-  const [subCategoryName, setSubCategoryName] = useState('');
+  const [subCategories, setSubCategories] = useState<string[]>([]);
+  const [currentSubCategoryInput, setCurrentSubCategoryInput] = useState('');
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,7 +40,8 @@ const CategoryManager: React.FC = () => {
   const openModalForAdd = () => {
     setEditingCategory(null);
     setCategoryName('');
-    setSubCategoryName('');
+    setSubCategories([]);
+    setCurrentSubCategoryInput('');
     setError(null);
     setIsModalOpen(true);
   };
@@ -47,7 +49,8 @@ const CategoryManager: React.FC = () => {
   const openModalForEdit = (category: ProductCategory) => {
     setEditingCategory(category);
     setCategoryName(category.category);
-    setSubCategoryName(category.subCategory);
+    setSubCategories(category.subCategory ? category.subCategory.split(',').map(s => s.trim()).filter(Boolean) : []);
+    setCurrentSubCategoryInput('');
     setError(null);
     setIsModalOpen(true);
   };
@@ -56,21 +59,24 @@ const CategoryManager: React.FC = () => {
     setIsModalOpen(false);
     setEditingCategory(null);
     setCategoryName('');
-    setSubCategoryName('');
+    setSubCategories([]);
+    setCurrentSubCategoryInput('');
   };
 
   const handleSave = async () => {
-    if (!categoryName.trim() || !subCategoryName.trim()) {
-      setError('Category and Sub-Category names cannot be empty.');
+    if (!categoryName.trim() || subCategories.length === 0) {
+      setError('Category name must be filled and at least one Sub-Category must be added.');
       return;
     }
 
     setIsSubmitting(true);
     setError(null);
 
+    const subCategoryString = subCategories.join(', ');
+
     const result = editingCategory
-      ? await updateCategory({ ...editingCategory, category: categoryName, subCategory: subCategoryName })
-      : await addCategory({ category: categoryName, subCategory: subCategoryName });
+      ? await updateCategory({ ...editingCategory, category: categoryName, subCategory: subCategoryString })
+      : await addCategory({ category: categoryName, subCategory: subCategoryString });
 
     setIsSubmitting(false);
 
@@ -96,6 +102,25 @@ const CategoryManager: React.FC = () => {
         }
     }
   };
+
+  const handleRemoveSubCategory = (indexToRemove: number) => {
+    setSubCategories(prev => prev.filter((_, index) => index !== indexToRemove));
+  };
+
+  const handleSubCategoryInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      const newSubCategory = currentSubCategoryInput.trim();
+      if (newSubCategory && !subCategories.map(s => s.toLowerCase()).includes(newSubCategory.toLowerCase())) {
+        setSubCategories(prev => [...prev, newSubCategory]);
+        setCurrentSubCategoryInput('');
+      } else if (newSubCategory) {
+        // if item already exists, just clear input
+        setCurrentSubCategoryInput('');
+      }
+    }
+  };
+
 
   if (loading) {
      return (
@@ -205,17 +230,33 @@ const CategoryManager: React.FC = () => {
             />
           </div>
           <div>
-            <label htmlFor="sub-category-name" className="block text-sm font-medium text-gray-700">Sub-Category Names</label>
-            <textarea
-              id="sub-category-name"
-              value={subCategoryName}
-              onChange={(e) => setSubCategoryName(e.target.value)}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-              placeholder="e.g., T-Shirts, Hoodies, Socks"
-              rows={3}
-              disabled={isSubmitting}
-            />
-            <p className="mt-1 text-xs text-gray-500">Enter multiple sub-categories separated by commas.</p>
+            <label htmlFor="sub-category-input" className="block text-sm font-medium text-gray-700">Sub-Category Names</label>
+            <div className="mt-1 flex flex-wrap items-center gap-2 p-2 border border-gray-300 rounded-md shadow-sm bg-white focus-within:ring-1 focus-within:ring-indigo-500 focus-within:border-indigo-500">
+                {subCategories.map((sub, index) => (
+                <span key={index} className="flex items-center gap-1.5 bg-indigo-100 text-indigo-800 text-sm font-medium px-2.5 py-1 rounded-full">
+                    {sub}
+                    <button
+                    type="button"
+                    onClick={() => handleRemoveSubCategory(index)}
+                    className="text-indigo-600 hover:text-indigo-800"
+                    aria-label={`Remove ${sub}`}
+                    >
+                    <XIcon className="h-4 w-4" />
+                    </button>
+                </span>
+                ))}
+                <input
+                type="text"
+                id="sub-category-input"
+                value={currentSubCategoryInput}
+                onChange={(e) => setCurrentSubCategoryInput(e.target.value)}
+                onKeyDown={handleSubCategoryInputKeyDown}
+                className="flex-grow p-1 border-0 focus:ring-0 sm:text-sm"
+                placeholder={subCategories.length === 0 ? "Type and press Enter to add..." : "Add another..."}
+                disabled={isSubmitting}
+                />
+            </div>
+            <p className="mt-1 text-xs text-gray-500">Enter a sub-category and press Enter or comma to add it to the list.</p>
           </div>
           {error && <p className="text-sm text-red-600">{error}</p>}
           <div className="flex justify-end space-x-2 pt-2">

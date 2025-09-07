@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { InventoryLog as InventoryLogType, WarehouseCountLog, AppSheetProduct } from '../types';
 import { getInventoryLogs, getWarehouseCountLogs, getAppSheetProducts, formatDateToYMD, formatToLocaleString } from '../services/dataService';
@@ -20,6 +18,11 @@ const WarehouseInventory: React.FC = () => {
 
     const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
     
+    // New state for view modes and expansion in grouped views
+    const [countLogViewMode, setCountLogViewMode] = useState<'chronological' | 'byProduct'>('chronological');
+    const [transactionViewMode, setTransactionViewMode] = useState<'chronological' | 'byProduct'>('chronological');
+    const [expandedProducts, setExpandedProducts] = useState<Set<string>>(new Set());
+
     useEffect(() => {
         const fetchData = async () => {
             setLoading(true);
@@ -174,6 +177,29 @@ const WarehouseInventory: React.FC = () => {
         });
     }, [warehouseCountLogs, selectedDate]);
     
+    // --- Grouped Data for New Views ---
+    const groupedCountLogs = useMemo(() => {
+        if (countLogViewMode !== 'byProduct') return {};
+        return filteredCountLogs.reduce((acc, log) => {
+            if (!acc[log.productName]) {
+                acc[log.productName] = [];
+            }
+            acc[log.productName].push(log);
+            return acc;
+        }, {} as Record<string, WarehouseCountLog[]>);
+    }, [filteredCountLogs, countLogViewMode]);
+
+    const groupedTransactionLogs = useMemo(() => {
+        if (transactionViewMode !== 'byProduct') return {};
+        return filteredLogs.reduce((acc, log) => {
+            if (!acc[log.productName]) {
+                acc[log.productName] = [];
+            }
+            acc[log.productName].push(log);
+            return acc;
+        }, {} as Record<string, InventoryLogType[]>);
+    }, [filteredLogs, transactionViewMode]);
+
     const clearFilters = () => {
         setSelectedDate('');
         setSelectedTransactionType('All');
@@ -209,6 +235,38 @@ const WarehouseInventory: React.FC = () => {
         });
     };
     
+    const handleToggleProduct = (e: React.MouseEvent, productName: string) => {
+        e.preventDefault();
+        setExpandedProducts(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(productName)) newSet.delete(productName);
+            else newSet.add(productName);
+            return newSet;
+        });
+    };
+
+    const renderViewModeToggle = (
+        currentMode: 'chronological' | 'byProduct',
+        setMode: (mode: 'chronological' | 'byProduct') => void
+    ) => (
+        <div className="flex justify-end p-2">
+            <div className="inline-flex items-center bg-gray-100 rounded-lg p-1 space-x-1">
+                <button
+                    onClick={() => setMode('chronological')}
+                    className={`px-3 py-1 text-sm font-semibold rounded-md transition-colors ${currentMode === 'chronological' ? 'bg-white text-indigo-700 shadow' : 'text-gray-600 hover:text-gray-800'}`}
+                >
+                    Chronological
+                </button>
+                <button
+                    onClick={() => setMode('byProduct')}
+                    className={`px-3 py-1 text-sm font-semibold rounded-md transition-colors ${currentMode === 'byProduct' ? 'bg-white text-indigo-700 shadow' : 'text-gray-600 hover:text-gray-800'}`}
+                >
+                    Group by Product
+                </button>
+            </div>
+        </div>
+    );
+
     if (loading) {
         return (
             <div className="space-y-6">
@@ -380,127 +438,221 @@ const WarehouseInventory: React.FC = () => {
                 )}
                 
                 {activeTab === 'counts' && (
-                    <div className="bg-white shadow-md rounded-lg overflow-hidden">
-                        <div className="hidden md:block overflow-x-auto">
-                            <table className="min-w-full divide-y divide-gray-200">
-                                <thead className="bg-gray-50">
-                                    <tr>
-                                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
-                                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Color</th>
-                                        <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
-                                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Notes</th>
-                                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date/Time</th>
-                                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-200">
-                                    {filteredCountLogs.length > 0 ? filteredCountLogs.map((log) => (
-                                    <tr key={log.countID} className="odd:bg-white even:bg-gray-50">
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{log.productName}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{log.color}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 font-semibold text-right">{log.quantity}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 italic">{log.notes}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{formatToLocaleString(log.timestamp)}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{log.user}</td>
-                                    </tr>
-                                    )) : (
-                                    <tr>
-                                        <td colSpan={6} className="text-center py-10 text-gray-500">No count logs match the current filters.</td>
-                                    </tr>
-                                    )}
-                                </tbody>
-                            </table>
+                     <>
+                        {renderViewModeToggle(countLogViewMode, setCountLogViewMode)}
+                        {countLogViewMode === 'chronological' ? (
+                        <div className="bg-white shadow-md rounded-lg overflow-hidden">
+                            <div className="hidden md:block overflow-x-auto">
+                                <table className="min-w-full divide-y divide-gray-200">
+                                    <thead className="bg-gray-50">
+                                        <tr>
+                                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
+                                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Color</th>
+                                            <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
+                                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Notes</th>
+                                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date/Time</th>
+                                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-200">
+                                        {filteredCountLogs.length > 0 ? filteredCountLogs.map((log) => (
+                                        <tr key={log.countID} className="odd:bg-white even:bg-gray-50">
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{log.productName}</td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{log.color}</td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 font-semibold text-right">{log.quantity}</td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 italic">{log.notes}</td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{formatToLocaleString(log.timestamp)}</td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{log.user}</td>
+                                        </tr>
+                                        )) : (
+                                        <tr>
+                                            <td colSpan={6} className="text-center py-10 text-gray-500">No count logs match the current filters.</td>
+                                        </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div className="md:hidden p-4 space-y-4 bg-gray-50">
+                                {filteredCountLogs.length > 0 ? filteredCountLogs.map(log => (
+                                    <details key={log.countID} className="bg-white p-4 rounded-lg shadow-sm border group">
+                                        <summary className="list-none flex justify-between items-center cursor-pointer">
+                                            <div className="flex-1">
+                                                <h3 className="font-bold text-gray-800">{log.productName}</h3>
+                                                <p className="text-sm text-gray-600">{log.color}</p>
+                                            </div>
+                                            <div className="text-right flex-shrink-0 pl-2">
+                                                <p className="font-bold text-lg text-indigo-600">{log.quantity}</p>
+                                            </div>
+                                            <ChevronRightIcon className="h-5 w-5 text-gray-500 ml-2 transition-transform group-open:rotate-90" />
+                                        </summary>
+                                        <div className="mt-3 pt-3 border-t text-sm space-y-2">
+                                            {log.notes && <p className="italic text-gray-600"><strong>Notes:</strong> "{log.notes}"</p>}
+                                            <p><strong>User:</strong> {log.user}</p>
+                                            <p className="text-xs text-gray-500">{formatToLocaleString(log.timestamp)}</p>
+                                        </div>
+                                    </details>
+                                )) : (
+                                    <div className="text-center py-10 text-gray-500 bg-white rounded-lg">
+                                        <p>No count logs match the current filters.</p>
+                                    </div>
+                                )}
+                            </div>
                         </div>
-                         <div className="md:hidden p-4 space-y-4 bg-gray-50">
-                            {filteredCountLogs.length > 0 ? filteredCountLogs.map(log => (
-                                <details key={log.countID} className="bg-white p-4 rounded-lg shadow-sm border group">
-                                    <summary className="list-none flex justify-between items-center cursor-pointer">
-                                        <div className="flex-1">
-                                            <h3 className="font-bold text-gray-800">{log.productName}</h3>
-                                            <p className="text-sm text-gray-600">{log.color}</p>
-                                        </div>
-                                        <div className="text-right flex-shrink-0 pl-2">
-                                            <p className="font-bold text-lg text-indigo-600">{log.quantity}</p>
-                                        </div>
-                                        <ChevronRightIcon className="h-5 w-5 text-gray-500 ml-2 transition-transform group-open:rotate-90" />
+                        ) : (
+                        <div className="space-y-3">
+                            <div className="flex justify-end space-x-2">
+                                <button onClick={() => setExpandedProducts(new Set(Object.keys(groupedCountLogs)))} className="px-3 py-1 text-xs font-medium text-indigo-700 bg-indigo-100 rounded-md">Expand All</button>
+                                <button onClick={() => setExpandedProducts(new Set())} className="px-3 py-1 text-xs font-medium text-gray-700 bg-gray-200 rounded-md">Collapse All</button>
+                            </div>
+                            {Object.keys(groupedCountLogs).length > 0 ? Object.entries(groupedCountLogs).map(([productName, logs]) => (
+                                <details key={productName} open={expandedProducts.has(productName)} className="bg-white shadow rounded-lg transition-all duration-300 group">
+                                    <summary className="px-4 py-3 text-lg font-semibold text-gray-800 cursor-pointer list-none flex justify-between items-center hover:bg-gray-50 rounded-t-lg" onClick={(e) => handleToggleProduct(e, productName)}>
+                                        <span>{productName}</span>
+                                        <span className="text-gray-600 text-base font-normal">({logs.length} counts)</span>
                                     </summary>
-                                    <div className="mt-3 pt-3 border-t text-sm space-y-2">
-                                        {log.notes && <p className="italic text-gray-600"><strong>Notes:</strong> "{log.notes}"</p>}
-                                        <p><strong>User:</strong> {log.user}</p>
-                                        <p className="text-xs text-gray-500">{formatToLocaleString(log.timestamp)}</p>
+                                    <div className="border-t border-gray-200 p-2 md:p-4">
+                                        <div className="overflow-x-auto">
+                                            <table className="min-w-full divide-y divide-gray-200 text-sm">
+                                                <thead className="bg-gray-50">
+                                                    <tr>
+                                                        <th className="px-3 py-2 text-left font-medium text-gray-500">Date/Time</th>
+                                                        <th className="px-3 py-2 text-left font-medium text-gray-500">Color</th>
+                                                        <th className="px-3 py-2 text-right font-medium text-gray-500">Qty</th>
+                                                        <th className="px-3 py-2 text-left font-medium text-gray-500">User</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-gray-100">
+                                                    {logs.map(log => (
+                                                        <tr key={log.countID}>
+                                                            <td className="px-3 py-2 whitespace-nowrap">{formatToLocaleString(log.timestamp)}</td>
+                                                            <td className="px-3 py-2">{log.color}</td>
+                                                            <td className="px-3 py-2 text-right font-semibold">{log.quantity}</td>
+                                                            <td className="px-3 py-2">{log.user}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
                                     </div>
                                 </details>
                             )) : (
-                                <div className="text-center py-10 text-gray-500 bg-white rounded-lg">
+                                <div className="text-center py-10 text-gray-500 bg-white rounded-lg shadow">
                                     <p>No count logs match the current filters.</p>
                                 </div>
                             )}
-                         </div>
-                    </div>
+                        </div>
+                    )}
+                    </>
                 )}
 
                 {activeTab === 'transactions' && (
-                    <div className="bg-white shadow-md rounded-lg overflow-hidden">
-                        <div className="hidden md:block overflow-x-auto">
-                            <table className="min-w-full divide-y divide-gray-200">
-                                <thead className="bg-gray-50">
-                                    <tr>
-                                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product Name</th>
-                                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Transaction Type</th>
-                                        <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
-                                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Log ID</th>
-                                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date/Time</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-200">
-                                    {filteredLogs.length > 0 ? filteredLogs.map((log) => (
-                                    <tr key={log.logID} className="odd:bg-white even:bg-gray-50">
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{log.productName}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <>
+                        {renderViewModeToggle(transactionViewMode, setTransactionViewMode)}
+                        {transactionViewMode === 'chronological' ? (
+                        <div className="bg-white shadow-md rounded-lg overflow-hidden">
+                            <div className="hidden md:block overflow-x-auto">
+                                <table className="min-w-full divide-y divide-gray-200">
+                                    <thead className="bg-gray-50">
+                                        <tr>
+                                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product Name</th>
+                                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Transaction Type</th>
+                                            <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
+                                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Log ID</th>
+                                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date/Time</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-200">
+                                        {filteredLogs.length > 0 ? filteredLogs.map((log) => (
+                                        <tr key={log.logID} className="odd:bg-white even:bg-gray-50">
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{log.productName}</td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800`}>
+                                                {log.transactionType}
+                                            </span>
+                                            </td>
+                                            <td className={`px-6 py-4 whitespace-nowrap text-sm font-semibold text-right text-green-600`}>
+                                                +{log.quantity}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{log.logID}</td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{formatToLocaleString(log.date)}</td>
+                                        </tr>
+                                        )) : (
+                                        <tr>
+                                            <td colSpan={5} className="text-center py-10 text-gray-500">No logs match the current filters.</td>
+                                        </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div className="md:hidden p-4 space-y-4 bg-gray-50">
+                            {filteredLogs.length > 0 ? filteredLogs.map(log => (
+                                <div key={log.logID} className="bg-white p-4 rounded-lg shadow-sm border">
+                                    <div className="flex justify-between items-start">
+                                        <span className="font-bold text-gray-800 pr-2">{log.productName}</span>
+                                        <span className={`font-bold text-lg flex-shrink-0 text-green-600`}>
+                                            +{log.quantity}
+                                        </span>
+                                    </div>
+                                    <div className="text-sm mt-2">
                                         <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800`}>
                                             {log.transactionType}
                                         </span>
-                                        </td>
-                                        <td className={`px-6 py-4 whitespace-nowrap text-sm font-semibold text-right text-green-600`}>
-                                            +{log.quantity}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{log.logID}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{formatToLocaleString(log.date)}</td>
-                                    </tr>
-                                    )) : (
-                                    <tr>
-                                        <td colSpan={5} className="text-center py-10 text-gray-500">No logs match the current filters.</td>
-                                    </tr>
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                        <div className="md:hidden p-4 space-y-4 bg-gray-50">
-                        {filteredLogs.length > 0 ? filteredLogs.map(log => (
-                            <div key={log.logID} className="bg-white p-4 rounded-lg shadow-sm border">
-                                <div className="flex justify-between items-start">
-                                    <span className="font-bold text-gray-800 pr-2">{log.productName}</span>
-                                    <span className={`font-bold text-lg flex-shrink-0 text-green-600`}>
-                                        +{log.quantity}
-                                    </span>
+                                    </div>
+                                    <div className="text-xs text-gray-500 mt-3 pt-2 border-t">
+                                        <p>{formatToLocaleString(log.date)}</p>
+                                        <p>Log ID: {log.logID}</p>
+                                    </div>
                                 </div>
-                                <div className="text-sm mt-2">
-                                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800`}>
-                                        {log.transactionType}
-                                    </span>
-                                </div>
-                                <div className="text-xs text-gray-500 mt-3 pt-2 border-t">
-                                    <p>{formatToLocaleString(log.date)}</p>
-                                    <p>Log ID: {log.logID}</p>
-                                </div>
+                                )) : (
+                                    <div className="text-center py-10 text-gray-500 bg-white rounded-lg">
+                                        <p>No logs match the current filters.</p>
+                                    </div>
+                                )}
                             </div>
+                        </div>
+                        ) : (
+                         <div className="space-y-3">
+                            <div className="flex justify-end space-x-2">
+                                <button onClick={() => setExpandedProducts(new Set(Object.keys(groupedTransactionLogs)))} className="px-3 py-1 text-xs font-medium text-indigo-700 bg-indigo-100 rounded-md">Expand All</button>
+                                <button onClick={() => setExpandedProducts(new Set())} className="px-3 py-1 text-xs font-medium text-gray-700 bg-gray-200 rounded-md">Collapse All</button>
+                            </div>
+                            {Object.keys(groupedTransactionLogs).length > 0 ? Object.entries(groupedTransactionLogs).map(([productName, logs]) => (
+                                <details key={productName} open={expandedProducts.has(productName)} className="bg-white shadow rounded-lg transition-all duration-300 group">
+                                    <summary className="px-4 py-3 text-lg font-semibold text-gray-800 cursor-pointer list-none flex justify-between items-center hover:bg-gray-50 rounded-t-lg" onClick={(e) => handleToggleProduct(e, productName)}>
+                                        <span>{productName}</span>
+                                        <span className="text-gray-600 text-base font-normal">({logs.length} transactions)</span>
+                                    </summary>
+                                    <div className="border-t border-gray-200 p-2 md:p-4">
+                                        <div className="overflow-x-auto">
+                                            <table className="min-w-full divide-y divide-gray-200 text-sm">
+                                                <thead className="bg-gray-50">
+                                                    <tr>
+                                                        <th className="px-3 py-2 text-left font-medium text-gray-500">Date/Time</th>
+                                                        <th className="px-3 py-2 text-left font-medium text-gray-500">Type</th>
+                                                        <th className="px-3 py-2 text-right font-medium text-gray-500">Qty</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-gray-100">
+                                                    {logs.map(log => (
+                                                        <tr key={log.logID}>
+                                                            <td className="px-3 py-2 whitespace-nowrap">{formatToLocaleString(log.date)}</td>
+                                                            <td className="px-3 py-2">{log.transactionType}</td>
+                                                            <td className={`px-3 py-2 text-right font-semibold text-green-600`}>+{log.quantity}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </details>
                             )) : (
-                                <div className="text-center py-10 text-gray-500 bg-white rounded-lg">
+                                <div className="text-center py-10 text-gray-500 bg-white rounded-lg shadow">
                                     <p>No logs match the current filters.</p>
                                 </div>
                             )}
-                        </div>
-                    </div>
+                         </div>
+                        )}
+                    </>
                 )}
             </div>
         </div>

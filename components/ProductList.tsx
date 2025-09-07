@@ -4,7 +4,7 @@ import { getAppSheetProducts, getProductCategories } from '../services/dataServi
 import { updateAppSheetProduct } from '../services/writeService';
 import CategoryManager from './CategoryManager';
 import Modal from './Modal';
-import { PencilIcon, ChevronDownIcon, ViewGridIcon, TableCellsIcon } from './icons';
+import { PencilIcon, ChevronDownIcon, ViewGridIcon, TableCellsIcon, SearchIcon } from './icons';
 
 type ViewMode = 'grouped' | 'table';
 type SortKey = keyof AppSheetProduct;
@@ -16,6 +16,7 @@ const ProductList: React.FC = () => {
   const [activeTab, setActiveTab] = useState('products');
   const [viewMode, setViewMode] = useState<ViewMode>('grouped');
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'asc' | 'desc' }>({ key: 'name', direction: 'asc' });
+  const [searchQuery, setSearchQuery] = useState('');
 
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -75,9 +76,18 @@ const ProductList: React.FC = () => {
     return result;
   }, [productCategories]);
 
+  const filteredProducts = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return appSheetProducts;
+    }
+    return appSheetProducts.filter(product =>
+      product.name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [appSheetProducts, searchQuery]);
+
   const groupedProducts = useMemo(() => {
     const grouped: { [category: string]: { [subCategory: string]: AppSheetProduct[] } } = {};
-    appSheetProducts.forEach(p => {
+    filteredProducts.forEach(p => {
         const category = p.category || 'Uncategorized';
         const subCategory = p.subCategory || 'General';
         if (!grouped[category]) grouped[category] = {};
@@ -93,10 +103,10 @@ const ProductList: React.FC = () => {
         });
     });
     return sortedGrouped;
-  }, [appSheetProducts]);
+  }, [filteredProducts]);
   
   const sortedProducts = useMemo(() => {
-    let sortableItems = [...appSheetProducts];
+    let sortableItems = [...filteredProducts];
     if (sortConfig !== null) {
       sortableItems.sort((a, b) => {
         const aValue = a[sortConfig.key];
@@ -115,7 +125,7 @@ const ProductList: React.FC = () => {
       });
     }
     return sortableItems;
-  }, [appSheetProducts, sortConfig]);
+  }, [filteredProducts, sortConfig]);
 
   const requestSort = (key: SortKey) => {
     let direction: 'asc' | 'desc' = 'asc';
@@ -283,20 +293,35 @@ const ProductList: React.FC = () => {
         <CategoryManager />
       ) : (
         <div className="space-y-4">
-            <div className="flex justify-end items-center space-x-2">
-                <button 
-                  onClick={() => setViewMode(prev => prev === 'grouped' ? 'table' : 'grouped')} 
-                  className="flex items-center px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-100 rounded-md hover:bg-indigo-200"
-                >
-                  {viewMode === 'grouped' ? <TableCellsIcon className="h-4 w-4 mr-1.5" /> : <ViewGridIcon className="h-4 w-4 mr-1.5" />}
-                  <span>{viewMode === 'grouped' ? 'Table View' : 'Grouped View'}</span>
-                </button>
-                {viewMode === 'grouped' && (
-                    <>
-                        <button onClick={handleExpandAll} className="px-3 py-1 text-xs font-medium text-indigo-700 bg-indigo-100 rounded-md">Expand All</button>
-                        <button onClick={handleCollapseAll} className="px-3 py-1 text-xs font-medium text-gray-700 bg-gray-200 rounded-md">Collapse All</button>
-                    </>
-                )}
+            <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+                <div className="relative w-full sm:max-w-xs">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <SearchIcon className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <input
+                        type="search"
+                        placeholder="Search products by name..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                        aria-label="Search products"
+                    />
+                </div>
+                <div className="flex items-center space-x-2 flex-shrink-0">
+                  <button 
+                    onClick={() => setViewMode(prev => prev === 'grouped' ? 'table' : 'grouped')} 
+                    className="flex items-center px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-100 rounded-md hover:bg-indigo-200"
+                  >
+                    {viewMode === 'grouped' ? <TableCellsIcon className="h-4 w-4 mr-1.5" /> : <ViewGridIcon className="h-4 w-4 mr-1.5" />}
+                    <span>{viewMode === 'grouped' ? 'Table View' : 'Grouped View'}</span>
+                  </button>
+                  {viewMode === 'grouped' && (
+                      <>
+                          <button onClick={handleExpandAll} className="px-3 py-1 text-xs font-medium text-indigo-700 bg-indigo-100 rounded-md">Expand All</button>
+                          <button onClick={handleCollapseAll} className="px-3 py-1 text-xs font-medium text-gray-700 bg-gray-200 rounded-md">Collapse All</button>
+                      </>
+                  )}
+                </div>
             </div>
 
             {viewMode === 'grouped' && (
@@ -345,7 +370,7 @@ const ProductList: React.FC = () => {
                     </details>
                 )) : (
                      <div className="text-center py-10 text-gray-500 bg-white rounded-lg shadow-md">
-                        <p>No products found.</p>
+                        <p>{searchQuery ? `No products found for "${searchQuery}".` : 'No products found.'}</p>
                     </div>
                 )
             )}
@@ -366,7 +391,7 @@ const ProductList: React.FC = () => {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-200">
-                                {sortedProducts.map(product => (
+                                {sortedProducts.length > 0 ? sortedProducts.map(product => (
                                     <tr key={product.name} className="odd:bg-white even:bg-gray-50">
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <p className="text-sm font-medium text-gray-900">{product.name}</p>
@@ -381,14 +406,20 @@ const ProductList: React.FC = () => {
                                             <button onClick={() => openModalForEdit(product)} className="p-2 text-indigo-600 hover:bg-indigo-100 rounded-full"><PencilIcon className="h-5 w-5" /></button>
                                         </td>
                                     </tr>
-                                ))}
+                                )) : (
+                                  <tr>
+                                    <td colSpan={5} className="px-6 py-10 text-center text-gray-500">
+                                      {searchQuery ? `No products found for "${searchQuery}".` : 'No products found.'}
+                                    </td>
+                                  </tr>
+                                )}
                             </tbody>
                         </table>
                     </div>
                  </div>
                  {/* Mobile Card View */}
                  <div className="md:hidden space-y-3">
-                    {sortedProducts.map(product => (
+                    {sortedProducts.length > 0 ? sortedProducts.map(product => (
                         <div key={product.name} className="bg-white rounded-lg shadow-sm overflow-hidden border p-4 space-y-3">
                             <div className="flex justify-between items-start">
                                 <h3 className="font-bold text-gray-800 flex-1 pr-2">{product.name}</h3>
@@ -407,7 +438,11 @@ const ProductList: React.FC = () => {
                                 </div>
                             </div>
                         </div>
-                    ))}
+                    )) : (
+                      <div className="text-center py-10 text-gray-500 bg-white rounded-lg shadow-md">
+                        <p>{searchQuery ? `No products found for "${searchQuery}".` : 'No products found.'}</p>
+                      </div>
+                    )}
                  </div>
                 </>
             )}

@@ -21,7 +21,8 @@ const SHEET_NAMES = {
   productsCategories: 'PRODUCTS_CATEGORIES',
   users: 'Users',
   products: 'Products',
-  productsListAppsheet: 'PRODUCTS_LIST_APPSHEET'
+  productsListAppsheet: 'PRODUCTS_LIST_APPSHEET',
+  accounts: 'Accounts'
 };
 
 const LOCK_TIMEOUT_SECONDS = 30;
@@ -81,6 +82,9 @@ function doPost(e) {
       case 'updateUser':
         response = handleUpdateUser(payload);
         break;
+      case 'deleteUser':
+        response = handleDeleteUser(payload);
+        break;
       case 'addProduct':
         response = handleAddProduct(payload);
         break;
@@ -95,6 +99,18 @@ function doPost(e) {
         break;
       case 'getProductCategories':
         response = handleGetProductCategories();
+        break;
+      case 'getAppSheetProducts':
+        response = handleGetAppSheetProducts();
+        break;
+      case 'addAccount':
+        response = handleAddAccount(payload);
+        break;
+      case 'updateAccount':
+        response = handleUpdateAccount(payload);
+        break;
+      case 'deleteAccount':
+        response = handleDeleteAccount(payload);
         break;
       default:
         throw new Error(`Unknown action: ${action}`);
@@ -127,6 +143,29 @@ function generateUniqueId() {
 }
 
 /**
+ * Creates a mapping from original sheet headers to camelCase field names.
+ * e.g., "Account Type" -> "accountType"
+ * @param {string[]} headers An array of header strings from the sheet.
+ * @returns {Object} An object where keys are original headers and values are camelCase.
+ */
+function getHeaderToFieldMap(headers) {
+  const map = {};
+  headers.forEach(function(header) {
+    if (!header) return;
+    const cleanHeader = String(header).trim();
+    const camelCaseKey = cleanHeader
+      .replace(/[^a-zA-Z0-9\s]/g, '') // Remove special chars
+      .replace(/^\w/, c => c.toLowerCase()) // Lowercase first letter
+      .replace(/\s+(.)/g, function(match, chr) { // Find space and capitalize next letter
+        return chr.toUpperCase();
+      });
+    map[cleanHeader] = camelCaseKey;
+  });
+  return map;
+}
+
+
+/**
  * Finds a row in a sheet by its ID using a robust, case-insensitive and space-insensitive comparison.
  * @param {Sheet} sheet The Google Sheet object.
  * @param {string} id The ID to search for.
@@ -139,29 +178,22 @@ function findRowById(sheet, id, idColumnName) {
     return null; // Empty sheet
   }
   
-  // Make header lookup robust to spaces and case by removing them before comparison
-  const headers = data[0].map(function(h) { 
-    return String(h || '').trim().toLowerCase().replace(/\s+/g, ''); 
-  });
-  
-  const searchColumnName = idColumnName.toLowerCase().replace(/\s+/g, '');
-  const idCol = headers.indexOf(searchColumnName);
+  const headers = data[0].map(function(h) { return String(h || '').trim(); });
+  const idCol = headers.indexOf(idColumnName);
   
   if (idCol === -1) {
     throw new Error("Missing '" + idColumnName + "' column in '" + sheet.getName() + "' sheet.");
   }
   
-  const idValue = String(id || '').trim().toLowerCase();
-  if (!idValue) { // Don't search for an empty ID
-    return null;
+  const idValue = String(id || '').trim();
+  if (!idValue) {
+    return null; // Don't search for an empty ID
   }
 
   for (var i = 1; i < data.length; i++) {
-    const sheetValue = String(data[i][idCol] || '').trim().toLowerCase();
+    const sheetValue = String(data[i][idCol] || '').trim();
     if (sheetValue === idValue) {
-      // Re-fetch original headers with original casing for the return object
-      const originalHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-      return { rowIndex: i + 1, rowData: data[i], headers: originalHeaders.map(String), idCol: idCol };
+      return { rowIndex: i + 1, rowData: data[i], headers: headers };
     }
   }
   return null;
@@ -267,7 +299,7 @@ function handleSubmitWarehouseCount(payload) {
   // Batch write to Inventory Log sheet
   if (inventoryLogRows.length > 0) {
     const startRow = logSheet.getLastRow() + 1;
-    logSheet.getRange(startRow, 1, inventoryLogRows.length, inventoryLogRows[0].length).setValues(inventoryLogRows);
+    logSheet.getRange(startRow, 1, inventoryLogRows.length, inventoryLogRows[0].length).setValues(logRows);
   }
   
   return { status: 'success', message: 'Warehouse count submitted successfully.' };
@@ -326,10 +358,10 @@ function handleUpdateOrderStatus(payload) {
   const rowInfo = findRowById(sheet, orderID, 'OrderID');
 
   if (rowInfo) {
-    const h = rowInfo.headers.map(function(h) { return h.toLowerCase().replace(/\s+/g, '') });
-    const statusCol = h.indexOf('status');
-    const officeNotesCol = h.indexOf('officenotes');
-    const quantityCol = h.indexOf('quantity');
+    const h = rowInfo.headers;
+    const statusCol = h.indexOf('Status');
+    const officeNotesCol = h.indexOf('Office Notes');
+    const quantityCol = h.indexOf('Quantity');
 
     if (statusCol !== -1) sheet.getRange(rowInfo.rowIndex, statusCol + 1).setValue(status);
     if (officeNotesCol !== -1) sheet.getRange(rowInfo.rowIndex, officeNotesCol + 1).setValue(officeNotes);
@@ -359,9 +391,9 @@ function handleUpdateLocation(payload) {
   const rowInfo = findRowById(sheet, payload.id, 'LocationID');
 
   if (rowInfo) {
-    const h = rowInfo.headers.map(function(h) { return h.toLowerCase().replace(/\s+/g, ''); });
-    const nameCol = h.indexOf('locationname');
-    const fullNameCol = h.indexOf('locationfullname');
+    const h = rowInfo.headers;
+    const nameCol = h.indexOf('Location Name');
+    const fullNameCol = h.indexOf('LocationFullName');
     if (nameCol !== -1) sheet.getRange(rowInfo.rowIndex, nameCol + 1).setValue(payload.name);
     if (fullNameCol !== -1) sheet.getRange(rowInfo.rowIndex, fullNameCol + 1).setValue(payload.locationFullName || '');
     return { status: 'success', message: 'Location updated successfully.' };
@@ -371,16 +403,13 @@ function handleUpdateLocation(payload) {
 
 function handleDeleteLocation(payload) {
   const sheet = getSheet(SHEET_NAMES.locations);
-  // Use the robust, centralized findRowById helper function. Pass 'LocationID' as instructed.
   const rowInfo = findRowById(sheet, payload.id, 'LocationID');
 
   if (rowInfo) {
-    // The findRowById function returns the 1-based index, which is what deleteRow needs.
     sheet.deleteRow(rowInfo.rowIndex);
     return { status: 'success', message: 'Location deleted successfully.' };
   }
   
-  // If findRowById returns null, the ID was not found.
   throw new Error("Location ID not found for deletion: " + payload.id);
 }
 
@@ -401,10 +430,10 @@ function handleUpdateCategory(payload) {
   const rowInfo = findRowById(sheet, payload.categoryID, 'CategoryID');
 
   if (rowInfo) {
-    const h = rowInfo.headers.map(function(h) { return h.toLowerCase().replace(/\s+/g, ''); });
-    const categoryCol = h.indexOf('category');
-    const subCategoryCol = h.indexOf('sub-category');
-    const timestampCol = h.indexOf('timestamp');
+    const h = rowInfo.headers;
+    const categoryCol = h.indexOf('Category');
+    const subCategoryCol = h.indexOf('Sub-Category');
+    const timestampCol = h.indexOf('Timestamp');
 
     if (categoryCol !== -1) sheet.getRange(rowInfo.rowIndex, categoryCol + 1).setValue(payload.category);
     if (subCategoryCol !== -1) sheet.getRange(rowInfo.rowIndex, subCategoryCol + 1).setValue(payload.subCategory);
@@ -463,6 +492,44 @@ function handleGetProductCategories() {
   return { status: 'success', data: categories };
 }
 
+function handleGetAppSheetProducts() {
+    const sheet = getSheet(SHEET_NAMES.productsListAppsheet);
+    const data = sheet.getDataRange().getValues();
+    if (data.length <= 1) {
+        return { status: 'success', data: [] };
+    }
+    
+    const headers = data[0].map(function(h) { return String(h).trim(); });
+    // Find column indices robustly
+    const nameIndex = headers.indexOf('Items');
+    const colorsIndex = headers.indexOf('Colors');
+    const categoryIndex = headers.indexOf('Category');
+    const subCategoryIndex = headers.indexOf('Sub-Category');
+    const lowStockIndex = headers.indexOf('Low Stock Threshold');
+
+    if ([nameIndex, colorsIndex, categoryIndex, subCategoryIndex, lowStockIndex].some(function(index) { return index === -1; })) {
+        throw new Error('One or more required columns are missing in PRODUCTS_LIST_APPSHEET: Items, Colors, Category, Sub-Category, Low Stock Threshold.');
+    }
+    
+    const products = [];
+    for (var i = 1; i < data.length; i++) {
+        var row = data[i];
+        if (row[nameIndex] && row[categoryIndex]) { // Ensure name and category exist
+            const colorsString = String(row[colorsIndex] || '');
+            const threshold = parseInt(String(row[lowStockIndex] || '10'), 10);
+            products.push({
+                name: row[nameIndex],
+                colors: colorsString ? colorsString.split(',').map(function(c) { return c.trim(); }) : [],
+                category: row[categoryIndex],
+                subCategory: row[subCategoryIndex] || '',
+                lowStockThreshold: !isNaN(threshold) ? threshold : 10,
+            });
+        }
+    }
+    
+    return { status: 'success', data: products };
+}
+
 
 /**
  * Handles CRUD operations for users.
@@ -488,13 +555,13 @@ function handleUpdateUser(payload) {
   const rowInfo = findRowById(sheet, payload.userID, 'UserID');
 
   if (rowInfo) {
-      const h = rowInfo.headers.map(function(h) { return h.toLowerCase().replace(/\s+/g, ''); });
-      const nameCol = h.indexOf('name');
-      const emailCol = h.indexOf('email');
-      const phoneCol = h.indexOf('phone');
-      const accessCodeCol = h.indexOf('accesscode');
-      const roleCol = h.indexOf('role');
-      const locationCol = h.indexOf('location');
+      const h = rowInfo.headers;
+      const nameCol = h.indexOf('Name');
+      const emailCol = h.indexOf('Email');
+      const phoneCol = h.indexOf('Phone');
+      const accessCodeCol = h.indexOf('AccessCode');
+      const roleCol = h.indexOf('Role');
+      const locationCol = h.indexOf('Location');
 
       if (nameCol !== -1) sheet.getRange(rowInfo.rowIndex, nameCol + 1).setValue(payload.name);
       if (emailCol !== -1) sheet.getRange(rowInfo.rowIndex, emailCol + 1).setValue(payload.email);
@@ -506,6 +573,23 @@ function handleUpdateUser(payload) {
       return { status: 'success', message: 'User updated successfully.' };
   }
   throw new Error("User ID not found for update: " + payload.userID);
+}
+
+function handleDeleteUser(payload) {
+  const sheet = getSheet(SHEET_NAMES.users);
+  const userID = payload.userID;
+  if (!userID) {
+    throw new Error("User ID is required for deletion.");
+  }
+  
+  const rowInfo = findRowById(sheet, userID, 'UserID');
+
+  if (rowInfo) {
+    sheet.deleteRow(rowInfo.rowIndex);
+    return { status: 'success', message: 'User deleted successfully.' };
+  }
+  
+  throw new Error("User ID not found for deletion: " + userID);
 }
 
 /**
@@ -529,9 +613,9 @@ function handleUpdateProduct(payload) {
   const rowInfo = findRowById(sheet, payload.productID, 'ProductID');
 
   if (rowInfo) {
-    const h = rowInfo.headers.map(function(h) { return h.toLowerCase().replace(/\s+/g, ''); });
-    const nameCol = h.indexOf('productname');
-    const imageUrlCol = h.indexOf('imageurl');
+    const h = rowInfo.headers;
+    const nameCol = h.indexOf('ProductName');
+    const imageUrlCol = h.indexOf('ImageUrl');
 
     if (nameCol !== -1) sheet.getRange(rowInfo.rowIndex, nameCol + 1).setValue(payload.productName);
     if (imageUrlCol !== -1) sheet.getRange(rowInfo.rowIndex, imageUrlCol + 1).setValue(payload.imageUrl);
@@ -569,10 +653,10 @@ function handleUpdateAppSheetProduct(payload) {
   const rowInfo = findRowById(sheet, payload.name, 'Items');
 
   if (rowInfo) {
-    const h = rowInfo.headers.map(function(h) { return h.toLowerCase().replace(/\s+/g, ''); });
-    const categoryCol = h.indexOf('category');
-    const subCategoryCol = h.indexOf('sub-category');
-    const lowStockCol = h.indexOf('lowstockthreshold');
+    const h = rowInfo.headers;
+    const categoryCol = h.indexOf('Category');
+    const subCategoryCol = h.indexOf('Sub-Category');
+    const lowStockCol = h.indexOf('Low Stock Threshold');
 
     // Only update editable fields
     if (categoryCol !== -1) sheet.getRange(rowInfo.rowIndex, categoryCol + 1).setValue(payload.category);
@@ -582,4 +666,65 @@ function handleUpdateAppSheetProduct(payload) {
     return { status: 'success', message: 'Product updated successfully.' };
   }
   throw new Error("Product not found for update: " + payload.name);
+}
+
+// --- NEW ACCOUNT CRUD HANDLERS ---
+function handleAddAccount(payload) {
+  const sheet = getSheet(SHEET_NAMES.accounts);
+  const newId = generateUniqueId();
+  
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const headerMap = getHeaderToFieldMap(headers);
+
+  const newRow = headers.map(function(header) {
+    const key = headerMap[header];
+    if (key === 'accountID') return newId;
+    if (key === 'timestamp') return new Date();
+    return payload[key] || '';
+  });
+
+  sheet.appendRow(newRow);
+  return { status: 'success', message: 'Account added successfully.' };
+}
+
+function handleUpdateAccount(payload) {
+  const sheet = getSheet(SHEET_NAMES.accounts);
+  const rowInfo = findRowById(sheet, payload.accountID, 'AccountID');
+
+  if (rowInfo) {
+    const headers = rowInfo.headers;
+    const existingData = rowInfo.rowData;
+    const headerMap = getHeaderToFieldMap(headers);
+
+    const newRowData = headers.map(function(header, index) {
+      const key = headerMap[header];
+
+      if (key === 'timestamp') {
+        return new Date();
+      }
+      
+      if (payload[key] !== undefined) {
+        return payload[key];
+      }
+      
+      return existingData[index];
+    });
+    
+    sheet.getRange(rowInfo.rowIndex, 1, 1, newRowData.length).setValues([newRowData]);
+    return { status: 'success', message: 'Account updated successfully.' };
+  }
+  
+  throw new Error("Account ID not found for update: " + payload.accountID);
+}
+
+function handleDeleteAccount(payload) {
+  const sheet = getSheet(SHEET_NAMES.accounts);
+  const rowInfo = findRowById(sheet, payload.accountID, 'AccountID');
+  
+  if (rowInfo) {
+    sheet.deleteRow(rowInfo.rowIndex);
+    return { status: 'success', message: 'Account deleted successfully.' };
+  }
+  
+  throw new Error("Account ID not found for deletion: " + payload.accountID);
 }

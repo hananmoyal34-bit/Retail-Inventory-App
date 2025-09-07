@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Page } from '../types';
-import { BoxIcon, ClipboardListIcon, CogIcon, ChevronDownIcon, HomeIcon, LocationMarkerIcon, LoginIcon, QuestionMarkCircleIcon, TableCellsIcon, TruckIcon, UsersIcon, WarehouseIcon } from './icons';
+import { BoxIcon, ClipboardListIcon, CogIcon, ChevronDownIcon, HomeIcon, LocationMarkerIcon, LoginIcon, QuestionMarkCircleIcon, TableCellsIcon, TruckIcon, UsersIcon, WarehouseIcon, DocumentTextIcon } from './icons';
 
 interface HeaderProps {
   activePage: Page;
@@ -24,6 +24,7 @@ const Header: React.FC<HeaderProps> = ({ activePage, setActivePage, onLogout }) 
     { id: Page.PRODUCTS, label: 'Products', icon: <BoxIcon /> },
     { id: Page.LOCATIONS, label: 'Locations', icon: <LocationMarkerIcon /> },
     { id: Page.USERS, label: 'Users', icon: <UsersIcon /> },
+    { id: Page.ACCOUNTS, label: 'Accounts', icon: <DocumentTextIcon /> },
     { id: Page.CUSTOMER_SERVICE, label: 'Customer Service', icon: <QuestionMarkCircleIcon /> },
   ];
 

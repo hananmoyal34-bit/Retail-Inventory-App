@@ -7,6 +7,7 @@ export enum Page {
   USERS = 'USERS',
   ORDERS = 'ORDERS',
   LOCATIONS = 'LOCATIONS',
+  ACCOUNTS = 'ACCOUNTS',
   MANAGER_PORTAL = 'MANAGER_PORTAL',
   CUSTOMER_SERVICE = 'CUSTOMER_SERVICE',
 }
@@ -38,7 +39,7 @@ export interface User {
   email: string;
   phone: string;
   accessCode: string;
-  role: 'Admin' | 'Manager' | 'Office' | string;
+  role: 'Admin' | 'Manager' | 'Office' | 'Accounting' | string;
   location: string;
 }
 
@@ -80,7 +81,7 @@ export interface InventoryLog {
   date: string;
   location: string;
   productName: string;
-  transactionType: 'Stock In' | 'In-Store Sale' | 'Warehouse Shipping' | 'Adjustment-Damage' | 'Initial Stock' | 'Adjustment-Variance';
+  transactionType: 'Stock In' | 'In-Store Sale' | 'Warehouse Shipping' | 'Adjustment-Damage' | 'Initial Stock' | 'Adjustment-Variance' | 'Adjustment-Manual';
   quantity: number;
 }
 
@@ -147,4 +148,24 @@ export interface ShippingData {
   firstName: string;
   lastName: string;
   ackReceiptUrl: string;
+}
+
+export interface Account {
+  accountID: string;
+  accountType: string;
+  subCategory: string;
+  company: string;
+  location: string;
+  locationNumber: string;
+  expiration: string;
+  amountDue: number;
+  billingType: string;
+  billingAmount: number;
+  paymentMethod: string;
+  licenseNumber?: string;
+  insuranceCarrier?: string;
+  insuranceBroker?: string;
+  notes?: string;
+  status: string;
+  timestamp: string;
 }
