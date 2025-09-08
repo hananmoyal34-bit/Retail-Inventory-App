@@ -122,6 +122,8 @@ const AccountsView: React.FC = () => {
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
   const [formState, setFormState] = useState(emptyFormState);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [customAccountType, setCustomAccountType] = useState('');
+  const [customSubCategory, setCustomSubCategory] = useState('');
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -144,36 +146,35 @@ const AccountsView: React.FC = () => {
   const { tabs, accountsByTab, accountTypeOptions, subCategoryOptions } = useMemo(() => {
     const grouped = accounts.reduce((acc, account) => {
         const type = account.accountType || 'Uncategorized';
-        if (!acc[type]) acc[type] = [];
+        if (!acc[type]) {
+            acc[type] = [];
+        }
         acc[type].push(account);
         return acc;
     }, {} as Record<string, Account[]>);
 
-    const sortedTypes = Object.entries(grouped).sort(([, a], [, b]) => b.length - a.length);
-    const mainTabs = sortedTypes.slice(0, 3).map(([type]) => type);
-    const otherAccounts = sortedTypes.slice(3).flatMap(([, accs]) => accs);
-    
-    const finalTabs: string[] = [...mainTabs];
-    const finalAccountsByTab: Record<string, Account[]> = {};
-    mainTabs.forEach(tab => { finalAccountsByTab[tab] = grouped[tab]; });
-    
-    if (otherAccounts.length > 0) {
-        finalTabs.push('Other');
-        finalAccountsByTab['Other'] = otherAccounts;
-    }
+    const sortedTabs = Object.keys(grouped).sort((a, b) => {
+        if (a === 'Uncategorized') return 1;
+        if (b === 'Uncategorized') return -1;
+        return a.localeCompare(b);
+    });
 
-    if (!activeTab && finalTabs.length > 0) setActiveTab(finalTabs[0]);
-    
     const allTypes = new Set(accounts.map(a => a.accountType).filter(Boolean));
     const allSubCats = new Set(accounts.map(a => a.subCategory).filter(Boolean));
 
     return { 
-        tabs: finalTabs, 
-        accountsByTab: finalAccountsByTab,
+        tabs: sortedTabs, 
+        accountsByTab: grouped,
         accountTypeOptions: Array.from(allTypes).sort(),
         subCategoryOptions: Array.from(allSubCats).sort(),
     };
-  }, [accounts, activeTab]);
+  }, [accounts]);
+
+  useEffect(() => {
+    if (tabs.length > 0 && !tabs.includes(activeTab)) {
+      setActiveTab(tabs[0]);
+    }
+  }, [tabs, activeTab]);
   
   const groupedAndFilteredAccounts = useMemo(() => {
       if (!activeTab || !accountsByTab[activeTab]) return {};
@@ -248,7 +249,9 @@ const AccountsView: React.FC = () => {
 
   const openModalForAdd = () => {
     setEditingAccount(null);
-    setFormState({ ...emptyFormState, accountType: activeTab !== 'Other' ? activeTab : '' });
+    setFormState({ ...emptyFormState, accountType: activeTab !== 'Uncategorized' ? activeTab : '' });
+    setCustomAccountType('');
+    setCustomSubCategory('');
     setError(null);
     setIsModalOpen(true);
   };
@@ -256,21 +259,37 @@ const AccountsView: React.FC = () => {
   const openModalForEdit = (account: Account) => {
     setEditingAccount(account);
     setFormState(account);
+    setCustomAccountType('');
+    setCustomSubCategory('');
     setError(null);
     setIsModalOpen(true);
   };
 
   const handleSave = async () => {
-      if (!formState.company.trim() || !formState.accountType.trim()) {
+      const finalAccountType = formState.accountType === '--custom--' 
+          ? customAccountType.trim() 
+          : formState.accountType;
+      
+      const finalSubCategory = formState.subCategory === '--custom--'
+          ? customSubCategory.trim()
+          : formState.subCategory;
+
+      if (!formState.company.trim() || !finalAccountType) {
           setError('Company and Account Type are required fields.');
           return;
       }
       setIsSubmitting(true);
       setError(null);
       
+      const dataToSave = {
+          ...formState,
+          accountType: finalAccountType,
+          subCategory: finalSubCategory,
+      };
+      
       const result = editingAccount 
-        ? await updateAccount({ ...editingAccount, ...formState })
-        : await addAccount(formState);
+        ? await updateAccount({ ...editingAccount, ...dataToSave })
+        : await addAccount(dataToSave);
         
       if (result.success) {
           setIsModalOpen(false);
@@ -320,11 +339,11 @@ const AccountsView: React.FC = () => {
   ];
   
   const visibleFormFields = useMemo(() => {
-    const currentAccountType = formState.accountType || activeTab;
+    const currentAccountType = formState.accountType === '--custom--' ? customAccountType : formState.accountType || activeTab;
     const visibleTableKeys = getVisibleHeaders(currentAccountType).map(h => h.key);
     const coreKeys: (keyof Account)[] = ['company', 'accountType', 'subCategory'];
     return ALL_FORM_FIELDS.filter(field => coreKeys.includes(field.key) || visibleTableKeys.includes(field.key));
-  }, [formState.accountType, activeTab, accountTypeOptions, subCategoryOptions]);
+  }, [formState.accountType, activeTab, accountTypeOptions, subCategoryOptions, customAccountType]);
 
   const visibleHeaders = getVisibleHeaders(activeTab);
   
@@ -504,6 +523,48 @@ const AccountsView: React.FC = () => {
                         const { name, value } = e.target;
                         setFormState(prev => ({ ...prev, [name]: field.type === 'number' ? parseFloat(value) || 0 : value }));
                     };
+
+                    if (field.key === 'accountType') {
+                        const handleAccountTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+                            const { name, value } = e.target;
+                            if (value !== '--custom--') setCustomAccountType('');
+                            setFormState(prev => ({ ...prev, [name]: value }));
+                        };
+                        return (
+                            <div key={field.key}>
+                                <label className="block text-sm font-medium text-gray-700">{field.label}</label>
+                                <select name={field.key} value={value as string} onChange={handleAccountTypeChange} className="mt-1 w-full p-2 border rounded bg-white">
+                                    <option value="">Select {field.label}</option>
+                                    {field.options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                    <option value="--custom--">... Add new type</option>
+                                </select>
+                                {formState.accountType === '--custom--' && (
+                                    <input type="text" placeholder="Enter custom account type" value={customAccountType} onChange={(e) => setCustomAccountType(e.target.value)} className="mt-2 w-full p-2 border border-indigo-300 rounded focus:ring-indigo-500" required autoFocus />
+                                )}
+                            </div>
+                        );
+                    }
+
+                    if (field.key === 'subCategory') {
+                        const handleSubCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+                            const { name, value } = e.target;
+                            if (value !== '--custom--') setCustomSubCategory('');
+                            setFormState(prev => ({ ...prev, [name]: value }));
+                        };
+                        return (
+                            <div key={field.key}>
+                                <label className="block text-sm font-medium text-gray-700">{field.label}</label>
+                                <select name={field.key} value={value as string} onChange={handleSubCategoryChange} className="mt-1 w-full p-2 border rounded bg-white">
+                                    <option value="">Select {field.label}</option>
+                                    {field.options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                    <option value="--custom--">... Add new sub category</option>
+                                </select>
+                                {formState.subCategory === '--custom--' && (
+                                    <input type="text" placeholder="Enter custom sub category" value={customSubCategory} onChange={(e) => setCustomSubCategory(e.target.value)} className="mt-2 w-full p-2 border border-indigo-300 rounded focus:ring-indigo-500" required autoFocus />
+                                )}
+                            </div>
+                        );
+                    }
 
                     return (
                         <div key={field.key} className={field.type === 'textarea' ? 'md:col-span-2' : ''}>
