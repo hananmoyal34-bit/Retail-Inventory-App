@@ -2,10 +2,10 @@
 import React, { useState } from 'react';
 import {
     BoxIcon, ClipboardListIcon, LoginIcon, TableCellsIcon, TruckIcon, WarehouseIcon,
-    ViewGridIcon, XIcon
+    ViewGridIcon, XIcon, QuestionMarkCircleIcon
 } from './icons';
 
-type OfficePage = 'Orders' | 'Products' | 'Count' | 'Warehouse Inventory' | 'Locations Inventory';
+type OfficePage = 'Orders' | 'Products' | 'Count' | 'Warehouse Inventory' | 'Locations Inventory' | 'Customer Service Hub';
 
 interface OfficeMobileNavMenuProps {
   activePage: OfficePage;
@@ -13,14 +13,13 @@ interface OfficeMobileNavMenuProps {
   onLogout: () => void;
 }
 
-// FIX: Changed icon type from React.ReactNode to React.ReactElement for compatibility with React.cloneElement
-// FIX: Explicitly type icon props with `<any>` to allow passing `className` via `React.cloneElement`, resolving the TypeScript error.
 const navItems: { id: OfficePage; label: string; icon: React.ReactElement<any> }[] = [
     { id: 'Orders', label: 'Orders', icon: <TruckIcon /> },
     { id: 'Count', label: 'Count', icon: <TableCellsIcon /> },
     { id: 'Warehouse Inventory', label: 'Warehouse', icon: <WarehouseIcon /> },
     { id: 'Locations Inventory', label: 'Locations', icon: <ClipboardListIcon /> },
     { id: 'Products', label: 'Products', icon: <BoxIcon /> },
+    { id: 'Customer Service Hub', label: 'CS Hub', icon: <QuestionMarkCircleIcon /> },
 ];
 
 const OfficeMobileNavMenu: React.FC<OfficeMobileNavMenuProps> = ({ activePage, setActivePage, onLogout }) => {

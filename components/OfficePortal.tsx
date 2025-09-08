@@ -5,15 +5,16 @@ import InventoryCount from './InventoryCount';
 import Orders from './Orders';
 import InventoryLog from './InventoryLog';
 import WarehouseInventory from './WarehouseInventory';
-import { BoxIcon, ClipboardListIcon, LoginIcon, TableCellsIcon, TruckIcon, WarehouseIcon } from './icons';
+import { BoxIcon, ClipboardListIcon, LoginIcon, TableCellsIcon, TruckIcon, WarehouseIcon, QuestionMarkCircleIcon } from './icons';
 import OfficeMobileNavMenu from './OfficeMobileNavMenu';
+import CustomerServiceHub from './customer_service_hub';
 
 interface OfficePortalProps {
   user: User;
   onLogout: () => void;
 }
 
-type OfficePage = 'Orders' | 'Products' | 'Count' | 'Warehouse Inventory' | 'Locations Inventory';
+type OfficePage = 'Orders' | 'Products' | 'Count' | 'Warehouse Inventory' | 'Locations Inventory' | 'Customer Service Hub';
 
 const OfficePortal: React.FC<OfficePortalProps> = ({ user, onLogout }) => {
   const [activePage, setActivePage] = useState<OfficePage>('Orders');
@@ -24,6 +25,7 @@ const OfficePortal: React.FC<OfficePortalProps> = ({ user, onLogout }) => {
     { id: 'Warehouse Inventory', label: 'Warehouse', icon: <WarehouseIcon className="h-5 w-5" /> },
     { id: 'Locations Inventory', label: 'Locations', icon: <ClipboardListIcon className="h-5 w-5" /> },
     { id: 'Products', label: 'Products', icon: <BoxIcon className="h-5 w-5" /> },
+    { id: 'Customer Service Hub', label: 'CS Hub', icon: <QuestionMarkCircleIcon className="h-5 w-5" /> },
   ];
 
   const renderPage = () => {
@@ -33,6 +35,7 @@ const OfficePortal: React.FC<OfficePortalProps> = ({ user, onLogout }) => {
       case 'Count': return <InventoryCount />;
       case 'Warehouse Inventory': return <WarehouseInventory />;
       case 'Locations Inventory': return <InventoryLog />;
+      case 'Customer Service Hub': return <CustomerServiceHub />;
       default: return <Orders />;
     }
   };
