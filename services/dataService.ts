@@ -1,5 +1,5 @@
 import { readSheet } from './googleSheetService';
-import { Product, User, Location, InventoryLog, LocationOrder, CountLog, ShippingData, AppSheetProduct, WarehouseCountLog, ProductCategory, Account } from '../types';
+import { Product, User, Location, InventoryLog, LocationOrder, CountLog, ShippingData, AppSheetProduct, WarehouseCountLog, ProductCategory, DraftCount, Account, CustomerRecord, Task, Contact } from '../types';
 import { fetchProductCategories, fetchAppSheetProducts } from './writeService';
 
 export let TIMEZONE = 'America/Los_Angeles'; // Default timezone, will be overwritten by config.
@@ -68,13 +68,15 @@ export const getCurrentDateInTimezone = (): string => {
 export const formatDateToYMD = (date: string | Date): string | null => {
     if (!date) return null;
     try {
+        const d = new Date(date);
+        if (isNaN(d.getTime())) return null;
         const formatter = new Intl.DateTimeFormat('en-CA', {
             timeZone: TIMEZONE,
             year: 'numeric',
             month: '2-digit',
             day: '2-digit',
         });
-        return formatter.format(new Date(date));
+        return formatter.format(d);
     } catch (e) {
         console.warn(`Could not parse or format date: ${date}`);
         return null;
@@ -144,7 +146,11 @@ const SHEET_NAMES = {
   productsListAppsheet: 'PRODUCTS_LIST_APPSHEET',
   warehouseCount: 'Warehouse Count',
   productsCategories: 'PRODUCTS_CATEGORIES',
+  draftCounts: 'Draft Counts',
   accounts: 'Accounts',
+  customerService: "Customer Service Hub",
+  tasks: "Tasks",
+  directory: "Directory",
 };
 
 // Helper to parse data safely.
@@ -234,6 +240,26 @@ export const getCountLogs = async (): Promise<CountLog[]> => {
   })).filter(log => log.logID);
 };
 
+export const getDraftCounts = async (): Promise<DraftCount[]> => {
+  const data = await readSheet(SHEET_NAMES.draftCounts);
+  if (data.length <= 1) return [];
+  const rows = data.slice(1);
+  return rows.map(row => ({
+    draftID: safeParseString(row[0]),
+    location: safeParseString(row[1]),
+    date: safeParseString(row[2]),
+    productName: safeParseString(row[3]),
+    openingStock: safeParseInt(row[4]),
+    stockIn: safeParseInt(row[5]),
+    inStoreSales: safeParseInt(row[6]),
+    warehouseShipping: safeParseInt(row[7]),
+    physicalEndCount: safeParseInt(row[8]),
+    isOpeningStockManual: safeParseString(row[9]).toLowerCase() === 'true',
+    lastUpdatedBy: safeParseString(row[10]),
+    timestamp: safeParseString(row[11]),
+  })).filter(d => d.draftID);
+};
+
 export const getWarehouseCountLogs = async (): Promise<WarehouseCountLog[]> => {
   const data = await readSheet(SHEET_NAMES.warehouseCount);
   if (data.length <= 1) return [];
@@ -296,27 +322,47 @@ export const getShippingData = async (): Promise<ShippingData[]> => {
     });
 };
 
+const mapRowToHeaders = <T,>(row: string[], headers: string[]): T => {
+    const obj: any = {};
+    headers.forEach((header, index) => {
+        obj[header] = row[index];
+    });
+    return obj as T;
+};
+
+export const getCustomerRecords = async (): Promise<CustomerRecord[]> => {
+  const data = await readSheet(SHEET_NAMES.customerService);
+  if (data.length <= 1) return [];
+  const headers = data[0];
+  const rows = data.slice(1);
+  return rows.map(row => mapRowToHeaders<CustomerRecord>(row, headers)).filter(r => r.TicketID);
+};
+
 export const getAccounts = async (): Promise<Account[]> => {
-    const data = await readSheet(SHEET_NAMES.accounts);
-    if (data.length <= 1) return [];
-    const rows = data.slice(1);
-    return rows.map(row => ({
-      accountID: safeParseString(row[0]),
-      accountType: safeParseString(row[1]),
-      subCategory: safeParseString(row[2]),
-      company: safeParseString(row[3]),
-      location: safeParseString(row[4]),
-      locationNumber: safeParseString(row[5]),
-      expiration: safeParseString(row[6]),
-      amountDue: safeParseFloat(row[7]),
-      billingType: safeParseString(row[8]),
-      billingAmount: safeParseFloat(row[9]),
-      paymentMethod: safeParseString(row[10]),
-      licenseNumber: safeParseString(row[11]),
-      insuranceCarrier: safeParseString(row[12]),
-      insuranceBroker: safeParseString(row[13]),
-      notes: safeParseString(row[14]),
-      status: safeParseString(row[15]),
-      timestamp: safeParseString(row[16]),
-    })).filter(acc => acc.accountID);
+  const data = await readSheet(SHEET_NAMES.accounts);
+  if (data.length <= 1) return [];
+  const headers = data[0];
+  const rows = data.slice(1);
+  const accounts = rows.map(row => mapRowToHeaders<Account>(row, headers)).filter(acc => acc.accountID);
+  return accounts.map(acc => ({
+      ...acc,
+      amountDue: safeParseFloat(String(acc.amountDue)),
+      billingAmount: safeParseFloat(String(acc.billingAmount)),
+  }));
+};
+
+export const getTasks = async (): Promise<Task[]> => {
+  const data = await readSheet(SHEET_NAMES.tasks);
+  if (data.length <= 1) return [];
+  const headers = data[0];
+  const rows = data.slice(1);
+  return rows.map(row => mapRowToHeaders<Task>(row, headers)).filter(t => t.TaskID);
+};
+
+export const getContacts = async (): Promise<Contact[]> => {
+  const data = await readSheet(SHEET_NAMES.directory);
+  if (data.length <= 1) return [];
+  const headers = data[0];
+  const rows = data.slice(1);
+  return rows.map(row => mapRowToHeaders<Contact>(row, headers)).filter(c => c.ContactID);
 };

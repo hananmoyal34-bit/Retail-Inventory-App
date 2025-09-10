@@ -7,9 +7,11 @@ interface ConfirmationModalProps {
     title: string;
     message: string;
     isConfirming?: boolean;
+    // FIX: Add optional prop for customizing the confirm button text.
+    confirmText?: string;
 }
 
-const ConfirmationModal: React.FC<ConfirmationModalProps> = ({ isOpen, onClose, onConfirm, title, message, isConfirming = false }) => {
+const ConfirmationModal: React.FC<ConfirmationModalProps> = ({ isOpen, onClose, onConfirm, title, message, isConfirming = false, confirmText = 'Confirm' }) => {
     if (!isOpen) return null;
 
     return (
@@ -28,7 +30,8 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({ isOpen, onClose, 
                         disabled={isConfirming}
                         className="text-white bg-red-600 hover:bg-red-700 focus:ring-4 focus:outline-none focus:ring-red-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center disabled:bg-red-400 disabled:cursor-not-allowed"
                     >
-                        {isConfirming ? 'Deleting...' : 'Confirm'}
+                        {/* FIX: Use confirmText prop and a more generic loading message */}
+                        {isConfirming ? 'Deleting...' : confirmText}
                     </button>
                 </div>
             </div>

@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 
 interface ModalProps {
@@ -7,9 +8,11 @@ interface ModalProps {
   title: string;
   children: React.ReactNode;
   size?: 'md' | 'lg' | 'xl' | '2xl';
+  // FIX: Add optional footer prop to allow passing footer content.
+  footer?: React.ReactNode;
 }
 
-const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, size = 'md' }) => {
+const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, size = 'md', footer }) => {
   if (!isOpen) return null;
 
   const sizeClasses = {
@@ -29,6 +32,12 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, size = 
         <div className="p-4">
           {children}
         </div>
+        {/* FIX: Render the footer if it's provided. */}
+        {footer && (
+          <div className="p-4 border-t flex justify-end items-center gap-3">
+            {footer}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -12,7 +12,7 @@
  * 6. Copy the final Web App URL and paste it into the `APPS_SCRIPT_URL` constant below.
  * ===============================================================================================
  */
-import { CountEntry, Location, OrderPayload, ProductCategory, Product, SubmitWarehouseCountPayload, User, AppSheetProduct, Account } from '../types';
+import { CountEntry, Location, OrderPayload, ProductCategory, Product, SubmitWarehouseCountPayload, User, AppSheetProduct, SaveDraftPayload, Account, Task, TaskFormState, Contact, ContactFormState, FormState, FileForUpload } from '../types';
 
 // IMPORTANT: Replace this placeholder with your own Google Apps Script Web App URL.
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzmOdNeBoevXAQGD762kxFnr87GvVAxjVq5WT8p7N4SJZRwvZ2BoI645V1PuIOWkwrjsQ/exec';
@@ -71,6 +71,15 @@ export const submitInventoryCount = async (payload: SubmitCountPayload): Promise
     ...payload
   };
   return postToAppsScript(scriptPayload);
+};
+
+export const saveDraftCount = async (payload: SaveDraftPayload): Promise<{ success: boolean; message: string; timestamp?: string }> => {
+  const scriptPayload = {
+    action: 'saveDraftCount',
+    ...payload
+  };
+  const result = await postToAppsScript(scriptPayload);
+  return { ...result, timestamp: result.data?.timestamp };
 };
 
 export const submitWarehouseCount = async (payload: SubmitWarehouseCountPayload): Promise<{ success: boolean; message: string }> => {
@@ -192,15 +201,48 @@ export const updateAppSheetProduct = async (product: Pick<AppSheetProduct, 'name
   return postToAppsScript({ action: 'updateAppSheetProduct', ...product });
 };
 
-// --- Account Management Functions ---
-export const addAccount = async (accountData: Omit<Account, 'accountID' | 'timestamp'>): Promise<{ success: boolean; message: string }> => {
-  return postToAppsScript({ action: 'addAccount', ...accountData });
+// --- Office Modules Write Functions ---
+
+// CSHub
+export const createRecord = async (formData: FormState, files: FileForUpload[]): Promise<any> => {
+    return postToAppsScript({ action: 'createCSHubRecord', payload: { formData, files } });
+};
+export const updateRecord = async (formData: FormState, files: FileForUpload[]): Promise<any> => {
+    return postToAppsScript({ action: 'updateCSHubRecord', payload: { formData, files } });
+}
+export const deleteRecord = async (ticketId: string): Promise<any> => {
+    return postToAppsScript({ action: 'deleteCSHubRecord', payload: { ticketId } });
+}
+
+// Accounts
+export const addAccount = async (account: Omit<Account, 'accountID' | 'timestamp'>, file: FileForUpload | null): Promise<{ success: boolean; message: string }> => {
+  return postToAppsScript({ action: 'addAccount', payload: { ...account, file } });
+};
+export const updateAccount = async (account: Account, file: FileForUpload | null): Promise<{ success: boolean; message: string }> => {
+  return postToAppsScript({ action: 'updateAccount', payload: { ...account, file } });
+};
+export const deleteAccount = async (accountId: string): Promise<{ success: boolean; message: string }> => {
+  return postToAppsScript({ action: 'deleteAccount', payload: { accountID: accountId } });
 };
 
-export const updateAccount = async (accountData: Account): Promise<{ success: boolean; message: string }> => {
-  return postToAppsScript({ action: 'updateAccount', ...accountData });
+// Tasks
+export const addTask = async (task: TaskFormState): Promise<{ success: boolean; message: string }> => {
+  return postToAppsScript({ action: 'addTask', payload: task });
+};
+export const updateTask = async (task: Task): Promise<{ success: boolean; message: string }> => {
+  return postToAppsScript({ action: 'updateTask', payload: task });
+};
+export const deleteTask = async (taskId: string): Promise<{ success: boolean; message: string }> => {
+  return postToAppsScript({ action: 'deleteTask', payload: { TaskID: taskId } });
 };
 
-export const deleteAccount = async (accountID: string): Promise<{ success: boolean; message: string }> => {
-  return postToAppsScript({ action: 'deleteAccount', accountID });
+// Directory
+export const addContact = async (contact: ContactFormState): Promise<{ success: boolean; message: string }> => {
+  return postToAppsScript({ action: 'addContact', payload: contact });
+};
+export const updateContact = async (contact: Contact): Promise<{ success: boolean; message: string }> => {
+  return postToAppsScript({ action: 'updateContact', payload: contact });
+};
+export const deleteContact = async (contactId: string): Promise<{ success: boolean; message: string }> => {
+  return postToAppsScript({ action: 'deleteContact', payload: { ContactID: contactId } });
 };

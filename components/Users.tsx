@@ -135,6 +135,7 @@ const Users: React.FC = () => {
   };
   
   const RoleBadge: React.FC<{ role: string }> = ({ role }) => {
+    const displayRole = role === 'Office' ? 'Logistics' : role;
     const styles: { [key: string]: string } = {
         'Admin': 'bg-red-100 text-red-800',
         'Manager': 'bg-blue-100 text-blue-800',
@@ -142,7 +143,7 @@ const Users: React.FC = () => {
         'Accounting': 'bg-purple-100 text-purple-800',
     };
     const style = styles[role] || 'bg-gray-100 text-gray-800';
-    return <span className={`px-2 py-1 text-xs font-semibold rounded-full ${style}`}>{role}</span>;
+    return <span className={`px-2 py-1 text-xs font-semibold rounded-full ${style}`}>{displayRole}</span>;
   };
 
   if (loading) {
@@ -266,9 +267,8 @@ const Users: React.FC = () => {
                 <label htmlFor="role" className="block text-sm font-medium text-gray-700">Role</label>
                 <select id="role" name="role" value={formState.role} onChange={handleFormChange} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" disabled={isSubmitting}>
                     <option>Manager</option>
-                    <option>Office</option>
+                    <option value="Office">Logistics</option>
                     <option>Admin</option>
-                    <option>Accounting</option>
                 </select>
             </div>
             <div>

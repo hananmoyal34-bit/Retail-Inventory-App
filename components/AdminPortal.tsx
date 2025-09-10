@@ -5,15 +5,14 @@ import ProductList from './ProductList';
 import InventoryCount from './InventoryCount';
 import Users from './Users';
 import Orders from './Orders';
-import InventoryLog from './InventoryLog';
 import WarehouseInventory from './WarehouseInventory';
 import Locations from './Locations';
-import ManagerPortal from './ManagerPortal';
-import CustomerService from './CustomerService';
-import AccountsView from './AccountsView';
 import MobileNavMenu from './MobileNavMenu';
 import { Page } from '../types';
 import { initializeAppConfig } from '../services/dataService';
+import CountLog from './CountLog';
+import TransactionLogs from './TransactionLogs';
+import ViewerPortal from './viewer/ViewerPortal';
 
 interface AdminPortalProps {
   onLogout: () => void;
@@ -41,18 +40,22 @@ const AdminPortal: React.FC<AdminPortalProps> = ({ onLogout }) => {
         return <InventoryCount />;
       case Page.WAREHOUSE_INVENTORY:
         return <WarehouseInventory />;
-      case Page.INVENTORY_LOG:
-        return <InventoryLog />;
+      case Page.TRANSACTION_LOGS:
+        return <TransactionLogs />;
+      case Page.COUNT_LOG:
+        return <CountLog />;
       case Page.USERS:
         return <Users />;
       case Page.ORDERS:
         return <Orders />;
       case Page.LOCATIONS:
         return <Locations />;
-      case Page.ACCOUNTS:
-        return <AccountsView />;
-      case Page.CUSTOMER_SERVICE:
-        return <CustomerService />;
+      case Page.VIEWER_CS_HUB:
+      case Page.VIEWER_FINANCING:
+      case Page.VIEWER_ACCOUNTS:
+      case Page.VIEWER_TASKS:
+      case Page.VIEWER_DIRECTORY:
+        return <ViewerPortal activePage={activePage} />;
       default:
         return <Dashboard setActivePage={setActivePage} />;
     }

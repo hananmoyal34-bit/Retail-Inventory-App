@@ -129,18 +129,21 @@ const Orders: React.FC = () => {
 
   }, [orders, selectedDate, selectedUser, selectedLocation]);
   
-  // Auto-expand date groups when a date filter is applied
+  // Auto-expand all location and date groups by default
   useEffect(() => {
-    if (selectedDate) {
-      const newExpanded = new Set<string>();
-      Object.entries(groupedAndFilteredOrders).forEach(([location, ordersByDate]) => {
-        if (ordersByDate[selectedDate]) {
-          newExpanded.add(`${location}-${selectedDate}`);
-        }
+    const allLocationKeys = new Set<string>();
+    const allDateKeys = new Set<string>();
+    
+    Object.entries(groupedAndFilteredOrders).forEach(([location, ordersByDate]) => {
+      allLocationKeys.add(location);
+      Object.keys(ordersByDate).forEach(date => {
+        allDateKeys.add(`${location}-${date}`);
       });
-      setExpandedDates(newExpanded);
-    }
-  }, [selectedDate, groupedAndFilteredOrders]);
+    });
+
+    setExpandedLocations(allLocationKeys);
+    setExpandedDates(allDateKeys);
+  }, [groupedAndFilteredOrders]);
 
   const handleToggleLocation = (location: string, isOpen: boolean) => {
     setExpandedLocations(prev => {
@@ -179,7 +182,6 @@ const Orders: React.FC = () => {
     setSelectedDate('');
     setSelectedUser('All');
     setSelectedLocation('All');
-    setExpandedLocations(new Set());
   };
 
   const handleOpenEditModal = (order: LocationOrder) => {

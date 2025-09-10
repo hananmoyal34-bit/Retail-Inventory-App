@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import LandingPage from './components/LandingPage';
 import AdminPortal from './components/AdminPortal';
 import ManagerPortal from './components/ManagerPortal';
-import OfficePortal from './components/OfficePortal';
-import AccountingPortal from './components/AccountingPortal';
+import LogisticsPortal from './components/OfficePortal';
 import { User } from './types';
 
 const SESSION_STORAGE_KEY = 'inventory_system_user';
@@ -57,9 +56,7 @@ const App: React.FC = () => {
     case 'Manager':
       return <ManagerPortal user={user} onLogout={handleLogout} />;
     case 'Office':
-      return <OfficePortal user={user} onLogout={handleLogout} />;
-    case 'Accounting':
-      return <AccountingPortal user={user} onLogout={handleLogout} />;
+      return <LogisticsPortal user={user} onLogout={handleLogout} />;
     default:
       // If user has an unknown role, log them out.
       handleLogout();

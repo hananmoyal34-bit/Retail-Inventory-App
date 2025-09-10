@@ -22,6 +22,8 @@ const SHEET_NAMES = {
   users: 'Users',
   products: 'Products',
   productsListAppsheet: 'PRODUCTS_LIST_APPSHEET',
+  draftCounts: 'Draft Counts',
+  // FIX: Added 'Accounts' sheet name.
   accounts: 'Accounts'
 };
 
@@ -48,6 +50,9 @@ function doPost(e) {
     switch (action) {
       case 'submitInventoryCount':
         response = handleSubmitInventoryCount(payload);
+        break;
+      case 'saveDraftCount':
+        response = handleSaveDraftCount(payload);
         break;
       case 'submitWarehouseCount':
         response = handleSubmitWarehouseCount(payload);
@@ -103,6 +108,7 @@ function doPost(e) {
       case 'getAppSheetProducts':
         response = handleGetAppSheetProducts();
         break;
+      // FIX: Added cases for account management actions.
       case 'addAccount':
         response = handleAddAccount(payload);
         break;
@@ -203,6 +209,73 @@ function findRowById(sheet, id, idColumnName) {
 // --- Action Handlers ---
 
 /**
+ * Deletes all draft counts for a specific location and date.
+ * Iterates backwards to avoid issues with changing row indices after deletion.
+ */
+function deleteDraftCounts(location, date) {
+  const sheet = getSheet(SHEET_NAMES.draftCounts);
+  if (sheet.getLastRow() < 2) return; // Sheet is empty or only has headers
+
+  const data = sheet.getDataRange().getValues();
+  const dateYMD = new Date(date).toISOString().slice(0, 10);
+
+  for (var i = data.length - 1; i >= 1; i--) {
+    const row = data[i];
+    const rowLocation = row[1]; // Column B
+    const rowDateObj = new Date(row[2]); // Column C
+    if (isNaN(rowDateObj.getTime())) continue; // Skip invalid date rows
+    const rowDate = rowDateObj.toISOString().slice(0, 10);
+
+    if (rowLocation === location && rowDate === dateYMD) {
+      sheet.deleteRow(i + 1);
+    }
+  }
+}
+
+/**
+ * Handles saving draft counts. It first deletes existing drafts for the day/location,
+ * then appends the new ones.
+ */
+function handleSaveDraftCount(payload) {
+  const sheet = getSheet(SHEET_NAMES.draftCounts);
+  const { location, date, entries, userName } = payload;
+  
+  if (!location || !date || !entries || !userName) {
+    throw new Error("Missing required data for saving draft count.");
+  }
+
+  // Delete existing drafts for this location and date to prevent duplicates/old data.
+  deleteDraftCounts(location, date);
+  
+  const timestamp = new Date();
+  const draftRows = [];
+
+  entries.forEach(function(entry) {
+    draftRows.push([
+      `${location}-${new Date(date).toISOString().slice(0, 10)}-${entry.productName}`, // draftID
+      location,
+      new Date(date),
+      entry.productName,
+      entry.openingStock,
+      entry.stockIn,
+      entry.inStoreSales,
+      entry.warehouseShipping,
+      entry.physicalEndCount,
+      entry.isOpeningStockManual || false,
+      userName,
+      timestamp
+    ]);
+  });
+  
+  if (draftRows.length > 0) {
+    const startRow = sheet.getLastRow() + 1;
+    sheet.getRange(startRow, 1, draftRows.length, draftRows[0].length).setValues(draftRows);
+  }
+  
+  return { status: 'success', message: 'Draft saved successfully.', data: { timestamp: timestamp.toISOString() } };
+}
+
+/**
  * Handles the submission of daily inventory counts for a location using batch writes.
  */
 function handleSubmitInventoryCount(payload) {
@@ -215,7 +288,7 @@ function handleSubmitInventoryCount(payload) {
   const logRows = [];
 
   payload.entries.forEach(function(entry) {
-    const calculatedEndCount = (entry.openingStock || 0) + (entry.stockIn || 0) - (entry.inStoreSales || 0) - (entry.warehouseShipping || 0);
+    const calculatedEndCount = (entry.openingStock || 0) + (entry.stockIn || 0) - (entry.inStoreSales || 0) + (entry.warehouseShipping || 0);
     const variance = (entry.physicalEndCount || 0) - calculatedEndCount;
 
     countRows.push([
@@ -224,9 +297,14 @@ function handleSubmitInventoryCount(payload) {
       entry.physicalEndCount, calculatedEndCount, variance
     ]);
     
-    if (entry.stockIn > 0) logRows.push([generateUniqueId(), date, location, entry.productName, 'Stock In', entry.stockIn]);
+    if (entry.stockIn > 0) {
+      // Log the "Stock In" for the retail location
+      logRows.push([generateUniqueId(), date, location, entry.productName, 'Stock In', entry.stockIn]);
+      // Log a corresponding deduction from the Warehouse with a negative quantity
+      logRows.push([generateUniqueId(), date, "Warehouse", entry.productName, 'Warehouse-Out-Sys', -entry.stockIn]);
+    }
     if (entry.inStoreSales > 0) logRows.push([generateUniqueId(), date, location, entry.productName, 'In-Store Sale', -entry.inStoreSales]);
-    if (entry.warehouseShipping > 0) logRows.push([generateUniqueId(), date, location, entry.productName, 'Warehouse Shipping', -entry.warehouseShipping]);
+    if (entry.warehouseShipping > 0) logRows.push([generateUniqueId(), date, location, entry.productName, 'Warehouse Shipping', entry.warehouseShipping]);
     if (variance !== 0) logRows.push([generateUniqueId(), date, location, entry.productName, 'Adjustment-Variance', variance]);
     
     if (entry.isOpeningStockManual) {
@@ -246,6 +324,9 @@ function handleSubmitInventoryCount(payload) {
     const startRow = logSheet.getLastRow() + 1;
     logSheet.getRange(startRow, 1, logRows.length, logRows[0].length).setValues(logRows);
   }
+
+  // After successful submission, delete the drafts for that day and location.
+  deleteDraftCounts(location, date);
 
   return { status: 'success', message: 'Inventory count submitted successfully.' };
 }
@@ -299,7 +380,7 @@ function handleSubmitWarehouseCount(payload) {
   // Batch write to Inventory Log sheet
   if (inventoryLogRows.length > 0) {
     const startRow = logSheet.getLastRow() + 1;
-    logSheet.getRange(startRow, 1, inventoryLogRows.length, inventoryLogRows[0].length).setValues(logRows);
+    logSheet.getRange(startRow, 1, inventoryLogRows.length, logRows[0].length).setValues(logRows);
   }
   
   return { status: 'success', message: 'Warehouse count submitted successfully.' };
@@ -668,22 +749,17 @@ function handleUpdateAppSheetProduct(payload) {
   throw new Error("Product not found for update: " + payload.name);
 }
 
-// --- NEW ACCOUNT CRUD HANDLERS ---
+// FIX: Added handlers for Account CRUD operations.
 function handleAddAccount(payload) {
   const sheet = getSheet(SHEET_NAMES.accounts);
   const newId = generateUniqueId();
-  
-  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  const headerMap = getHeaderToFieldMap(headers);
-
-  const newRow = headers.map(function(header) {
-    const key = headerMap[header];
-    if (key === 'accountID') return newId;
-    if (key === 'timestamp') return new Date();
-    return payload[key] || '';
-  });
-
-  sheet.appendRow(newRow);
+  sheet.appendRow([
+    newId, new Date(), payload.accountType, payload.subCategory, payload.company,
+    payload.location, payload.locationNumber, payload.expiration ? new Date(payload.expiration) : null,
+    payload.amountDue, payload.billingType, payload.billingAmount, payload.paymentMethod,
+    payload.licenseNumber, payload.insuranceCarrier, payload.insuranceBroker,
+    payload.notes, payload.status
+  ]);
   return { status: 'success', message: 'Account added successfully.' };
 }
 
@@ -692,39 +768,50 @@ function handleUpdateAccount(payload) {
   const rowInfo = findRowById(sheet, payload.accountID, 'AccountID');
 
   if (rowInfo) {
-    const headers = rowInfo.headers;
-    const existingData = rowInfo.rowData;
-    const headerMap = getHeaderToFieldMap(headers);
+      const h = rowInfo.headers;
+      const payloadToSheetMap = {
+        'accountType': 'Account Type', 'subCategory': 'Sub Category', 'company': 'Company', 'location': 'Location',
+        'locationNumber': 'Location Number', 'expiration': 'Expiration', 'amountDue': 'Amount Due',
+        'billingType': 'Billing Type', 'billingAmount': 'Billing Amount', 'paymentMethod': 'Payment Method',
+        'licenseNumber': 'License Number', 'insuranceCarrier': 'Insurance Carrier', 'insuranceBroker': 'Insurance Broker',
+        'notes': 'Notes', 'status': 'Status'
+      };
+      
+      Object.keys(payloadToSheetMap).forEach(function(payloadKey) {
+        const headerName = payloadToSheetMap[payloadKey];
+        const colIndex = h.indexOf(headerName);
+        if (colIndex !== -1 && payload.hasOwnProperty(payloadKey)) {
+          var value = payload[payloadKey];
+          if (payloadKey === 'expiration' && value) {
+              try { value = new Date(value); } catch(e) { value = null; }
+          }
+          sheet.getRange(rowInfo.rowIndex, colIndex + 1).setValue(value);
+        }
+      });
 
-    const newRowData = headers.map(function(header, index) {
-      const key = headerMap[header];
-
-      if (key === 'timestamp') {
-        return new Date();
+      const timestampIndex = h.indexOf('Timestamp');
+      if (timestampIndex !== -1) {
+          sheet.getRange(rowInfo.rowIndex, timestampIndex + 1).setValue(new Date());
       }
       
-      if (payload[key] !== undefined) {
-        return payload[key];
-      }
-      
-      return existingData[index];
-    });
-    
-    sheet.getRange(rowInfo.rowIndex, 1, 1, newRowData.length).setValues([newRowData]);
-    return { status: 'success', message: 'Account updated successfully.' };
+      return { status: 'success', message: 'Account updated successfully.' };
   }
-  
   throw new Error("Account ID not found for update: " + payload.accountID);
 }
 
 function handleDeleteAccount(payload) {
   const sheet = getSheet(SHEET_NAMES.accounts);
-  const rowInfo = findRowById(sheet, payload.accountID, 'AccountID');
+  const accountID = payload.accountID;
+  if (!accountID) {
+    throw new Error("Account ID is required for deletion.");
+  }
   
+  const rowInfo = findRowById(sheet, accountID, 'AccountID');
+
   if (rowInfo) {
     sheet.deleteRow(rowInfo.rowIndex);
     return { status: 'success', message: 'Account deleted successfully.' };
   }
   
-  throw new Error("Account ID not found for deletion: " + payload.accountID);
+  throw new Error("Account ID not found for deletion: " + accountID);
 }

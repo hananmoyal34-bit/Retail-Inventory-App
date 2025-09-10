@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { InventoryLog as InventoryLogType, Location, CountLog, AppSheetProduct } from '../types';
-import { getInventoryLogs, getLocations, getCountLogs, formatDateToYMD, formatToLocaleString, getAppSheetProducts } from '../services/dataService';
+import { getInventoryLogs, getLocations, getCountLogs, formatDateToYMD, formatToLocaleString, getAppSheetProducts, getCurrentDateInTimezone } from '../services/dataService';
 import LocationTag from './LocationTag';
 import DatePicker from './DatePicker';
 import { ChevronRightIcon } from './icons';
@@ -13,14 +13,14 @@ const InventoryLog: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [locations, setLocations] = useState<Location[]>([]);
   const [selectedLocation, setSelectedLocation] = useState<string>('All');
-  const [selectedDate, setSelectedDate] = useState<string>('');
-  const [selectedTransactionType, setSelectedTransactionType] = useState<string>('All');
+  const [selectedDate, setSelectedDate] = useState<string>(getCurrentDateInTimezone());
+  const [selectedTransactionType, setSelectedTransactionType] = useState<string>('Adjustment-Variance');
   const [expandedInventoryLocations, setExpandedInventoryLocations] = useState<Set<string>>(new Set());
   const [expandedLowStockLocations, setExpandedLowStockLocations] = useState<Set<string>>(new Set());
 
   // New state for view modes and expansion in grouped views
   const [countLogViewMode, setCountLogViewMode] = useState<'chronological' | 'byProduct'>('chronological');
-  const [transactionViewMode, setTransactionViewMode] = useState<'chronological' | 'byProduct'>('chronological');
+  const [transactionViewMode, setTransactionViewMode] = useState<'chronological' | 'byProduct'>('byProduct');
   const [expandedProducts, setExpandedProducts] = useState<Set<string>>(new Set());
 
 
@@ -201,6 +201,14 @@ const InventoryLog: React.FC = () => {
         return acc;
     }, {} as Record<string, InventoryLogType[]>);
   }, [filteredLogs, transactionViewMode]);
+
+  useEffect(() => {
+    if (transactionViewMode === 'byProduct') {
+        setExpandedProducts(new Set(Object.keys(groupedTransactionLogs)));
+    } else {
+        setExpandedProducts(new Set());
+    }
+  }, [groupedTransactionLogs, transactionViewMode]);
 
   const clearFilters = () => {
     setSelectedLocation('All');
@@ -586,7 +594,7 @@ const InventoryLog: React.FC = () => {
                                 <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Opening</th>
                                 <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Stock In</th>
                                 <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Sales</th>
-                                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Shipping</th>
+                                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Shipping (+)</th>
                                 <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Calculated</th>
                                 <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Physical</th>
                                 <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Variance</th>
@@ -601,7 +609,7 @@ const InventoryLog: React.FC = () => {
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">{log.openingStock}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 text-right">+{log.stockIn}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600 text-right">-{log.inStoreSales}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600 text-right">-{log.warehouseShipping}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 text-right">+{log.warehouseShipping}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-semibold text-right">{log.calculatedEndCount}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-blue-600 font-semibold text-right">{log.physicalEndCount}</td>
                                     <td className={`px-6 py-4 whitespace-nowrap text-sm font-bold text-right ${log.variance === 0 ? 'text-green-700' : 'text-red-700'}`}>
@@ -641,7 +649,7 @@ const InventoryLog: React.FC = () => {
                                     <span>Calculated End:</span><span className="font-medium text-right">{log.calculatedEndCount}</span>
                                     <span className="text-green-600">Stock In:</span><span className="font-medium text-right text-green-600">+{log.stockIn}</span>
                                     <span className="text-red-600">Sales:</span><span className="font-medium text-right text-red-600">-{log.inStoreSales}</span>
-                                    <span className="text-red-600">Shipping:</span><span className="font-medium text-right text-red-600">-{log.warehouseShipping}</span>
+                                    <span className="text-green-600">Shipping:</span><span className="font-medium text-right text-green-600">+{log.warehouseShipping}</span>
                                 </div>
                                 <div className="pt-2 flex justify-end">
                                     <LocationTag location={log.location} />

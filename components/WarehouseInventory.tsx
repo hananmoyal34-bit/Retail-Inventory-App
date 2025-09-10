@@ -17,6 +17,7 @@ const WarehouseInventory: React.FC = () => {
     const [searchQuery, setSearchQuery] = useState('');
 
     const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+    const [isInitialLoad, setIsInitialLoad] = useState(true);
     
     // New state for view modes and expansion in grouped views
     const [countLogViewMode, setCountLogViewMode] = useState<'chronological' | 'byProduct'>('chronological');
@@ -54,39 +55,50 @@ const WarehouseInventory: React.FC = () => {
     }, [appSheetProducts]);
 
     const warehouseStock = useMemo(() => {
-        if (warehouseCountLogs.length === 0 || appSheetProducts.length === 0) return {};
+        if (inventoryLogs.length === 0 || appSheetProducts.length === 0) return {};
 
         const productCategoryMap = new Map<string, string>();
         appSheetProducts.forEach(p => {
             productCategoryMap.set(p.name, p.category || 'Uncategorized');
         });
 
-        const stockMap = new Map<string, { totalStock: number; colors: Map<string, number> }>();
-
-        // Iterate over ALL warehouse count logs to get cumulative totals
-        warehouseCountLogs.forEach(log => {
-            const entry = stockMap.get(log.productName) || { totalStock: 0, colors: new Map<string, number>() };
-            entry.totalStock += log.quantity;
-            const colorQty = entry.colors.get(log.color) || 0;
-            entry.colors.set(log.color, colorQty + log.quantity);
-            stockMap.set(log.productName, entry);
+        // Step 1: Calculate accurate total stock from inventoryLogs for the warehouse.
+        const totalStockMap = new Map<string, number>();
+        inventoryLogs.forEach(log => {
+            if (log.location === 'Warehouse') {
+                const currentStock = totalStockMap.get(log.productName) || 0;
+                totalStockMap.set(log.productName, currentStock + log.quantity);
+            }
         });
 
-        const productsWithCategory = Array.from(stockMap.entries())
-            .map(([productName, data]) => {
-                const colorsArray = Array.from(data.colors.entries())
-                    .map(([color, quantity]) => ({ color, quantity }))
-                    .sort((a, b) => a.color.localeCompare(b.color));
-                
-                return { 
-                    productName, 
-                    category: productCategoryMap.get(productName) || 'Uncategorized',
-                    totalStock: data.totalStock,
-                    colors: colorsArray
-                };
-            });
+        // Step 2: Calculate color breakdown from warehouseCountLogs. This gives us composition.
+        const colorStockMap = new Map<string, Map<string, number>>();
+        warehouseCountLogs.forEach(log => {
+            const productColors = colorStockMap.get(log.productName) || new Map<string, number>();
+            const currentColorQty = productColors.get(log.color) || 0;
+            productColors.set(log.color, currentColorQty + log.quantity);
+            colorStockMap.set(log.productName, productColors);
+        });
 
-        const groupedByCategory = productsWithCategory.reduce((acc, product) => {
+        // FIX: Replaced .forEach and .push with .map to ensure proper type inference for combinedProducts.
+        // This resolves downstream issues where array methods were called on properties of 'unknown' type.
+        // Step 3: Combine the accurate total with the color breakdown.
+        const combinedProducts = Array.from(totalStockMap.entries()).map(([productName, totalStock]) => {
+            const colorsMap = colorStockMap.get(productName) || new Map<string, number>();
+            const colorsArray = Array.from(colorsMap.entries())
+                .map(([color, quantity]) => ({ color, quantity }))
+                .sort((a, b) => a.color.localeCompare(b.color));
+            
+            return {
+                productName,
+                category: productCategoryMap.get(productName) || 'Uncategorized',
+                totalStock,
+                colors: colorsArray,
+            };
+        });
+
+        // Step 4: Group the final combined data by category.
+        const groupedByCategory = combinedProducts.reduce((acc, product) => {
             const category = product.category;
             if (!acc[category]) {
                 acc[category] = [];
@@ -94,7 +106,7 @@ const WarehouseInventory: React.FC = () => {
             acc[category].push(product);
             acc[category].sort((a, b) => a.productName.localeCompare(b.productName));
             return acc;
-        }, {} as Record<string, typeof productsWithCategory>);
+        }, {} as Record<string, typeof combinedProducts>);
         
         return Object.keys(groupedByCategory).sort().reduce(
           (obj, key) => { 
@@ -103,7 +115,14 @@ const WarehouseInventory: React.FC = () => {
           }, 
           {} as typeof groupedByCategory
         );
-    }, [warehouseCountLogs, appSheetProducts]);
+    }, [inventoryLogs, warehouseCountLogs, appSheetProducts]);
+    
+    useEffect(() => {
+        if (!loading && isInitialLoad && Object.keys(warehouseStock).length > 0) {
+            setExpandedCategories(new Set(Object.keys(warehouseStock)));
+            setIsInitialLoad(false);
+        }
+    }, [loading, isInitialLoad, warehouseStock]);
 
     const filteredWarehouseStock = useMemo(() => {
         const lowercasedQuery = searchQuery.toLowerCase().trim();
@@ -566,12 +585,12 @@ const WarehouseInventory: React.FC = () => {
                                         <tr key={log.logID} className="odd:bg-white even:bg-gray-50">
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{log.productName}</td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800`}>
+                                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${log.quantity > 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                                                 {log.transactionType}
                                             </span>
                                             </td>
-                                            <td className={`px-6 py-4 whitespace-nowrap text-sm font-semibold text-right text-green-600`}>
-                                                +{log.quantity}
+                                            <td className={`px-6 py-4 whitespace-nowrap text-sm font-semibold text-right ${log.quantity > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                {log.quantity > 0 ? `+${log.quantity}` : log.quantity}
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{log.logID}</td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{formatToLocaleString(log.date)}</td>
@@ -589,12 +608,12 @@ const WarehouseInventory: React.FC = () => {
                                 <div key={log.logID} className="bg-white p-4 rounded-lg shadow-sm border">
                                     <div className="flex justify-between items-start">
                                         <span className="font-bold text-gray-800 pr-2">{log.productName}</span>
-                                        <span className={`font-bold text-lg flex-shrink-0 text-green-600`}>
-                                            +{log.quantity}
+                                        <span className={`font-bold text-lg flex-shrink-0 ${log.quantity > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                            {log.quantity > 0 ? `+${log.quantity}` : log.quantity}
                                         </span>
                                     </div>
                                     <div className="text-sm mt-2">
-                                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800`}>
+                                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${log.quantity > 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                                             {log.transactionType}
                                         </span>
                                     </div>
@@ -637,7 +656,7 @@ const WarehouseInventory: React.FC = () => {
                                                         <tr key={log.logID}>
                                                             <td className="px-3 py-2 whitespace-nowrap">{formatToLocaleString(log.date)}</td>
                                                             <td className="px-3 py-2">{log.transactionType}</td>
-                                                            <td className={`px-3 py-2 text-right font-semibold text-green-600`}>+{log.quantity}</td>
+                                                            <td className={`px-3 py-2 text-right font-semibold ${log.quantity > 0 ? 'text-green-600' : 'text-red-600'}`}>{log.quantity > 0 ? `+${log.quantity}` : log.quantity}</td>
                                                         </tr>
                                                     ))}
                                                 </tbody>

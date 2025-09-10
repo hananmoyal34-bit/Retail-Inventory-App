@@ -10,9 +10,10 @@ interface AccessibleNumberInputProps {
   className?: string;
   inputClassName?: string;
   ariaLabel?: string;
+  disabled?: boolean;
 }
 
-const AccessibleNumberInput: React.FC<AccessibleNumberInputProps> = ({ id, value, onChange, min = 0, step = 1, className = '', inputClassName = '', ariaLabel }) => {
+const AccessibleNumberInput: React.FC<AccessibleNumberInputProps> = ({ id, value, onChange, min = 0, step = 1, className = '', inputClassName = '', ariaLabel, disabled = false }) => {
   const [inputValue, setInputValue] = useState(value.toString());
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -51,20 +52,21 @@ const AccessibleNumberInput: React.FC<AccessibleNumberInputProps> = ({ id, value
         type="button"
         onClick={() => handleValueChange(amount)}
         aria-label={`Increment by ${amount}`}
-        className={`relative px-3 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:z-10 border-l border-gray-300 ${isLast ? 'rounded-r-md' : ''}`}
+        className={`relative px-3 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:z-10 border-l border-gray-300 ${isLast ? 'rounded-r-md' : ''} disabled:opacity-50 disabled:cursor-not-allowed`}
+        disabled={disabled}
     >
         +{amount}
     </button>
   );
 
   return (
-    <div className={`inline-flex items-center border border-gray-300 rounded-md bg-white shadow-sm ${className}`}>
+    <div className={`inline-flex items-center border border-gray-300 rounded-md bg-white shadow-sm ${className} ${disabled ? 'bg-gray-100' : ''}`}>
       <button
         type="button"
         onClick={() => handleValueChange(-step)}
         aria-label="Decrement"
         className="relative p-2 text-gray-600 hover:bg-gray-200 rounded-l-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:z-10 disabled:opacity-50 disabled:cursor-not-allowed"
-        disabled={value <= min}
+        disabled={disabled || value <= min}
       >
         <MinusIcon className="h-5 w-5" />
       </button>
@@ -75,16 +77,18 @@ const AccessibleNumberInput: React.FC<AccessibleNumberInputProps> = ({ id, value
         value={inputValue}
         onChange={handleChange}
         onBlur={handleBlur}
-        className={`relative w-20 py-2 px-1 text-center border-l border-r border-gray-300 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:z-10 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${inputClassName}`}
+        className={`relative w-20 py-2 px-1 text-center border-l border-r border-gray-300 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:z-10 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none disabled:bg-gray-100 ${inputClassName}`}
         min={min}
         aria-valuenow={value}
         aria-label={ariaLabel}
+        disabled={disabled}
       />
       <button
         type="button"
         onClick={() => handleValueChange(step)}
         aria-label="Increment"
-        className="relative p-2 text-gray-600 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:z-10"
+        className="relative p-2 text-gray-600 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:z-10 disabled:opacity-50 disabled:cursor-not-allowed"
+        disabled={disabled}
       >
         <PlusIcon className="h-5 w-5" />
       </button>

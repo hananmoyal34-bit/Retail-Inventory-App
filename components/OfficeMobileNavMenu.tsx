@@ -2,10 +2,10 @@
 import React, { useState } from 'react';
 import {
     BoxIcon, ClipboardListIcon, LoginIcon, TableCellsIcon, TruckIcon, WarehouseIcon,
-    ViewGridIcon, XIcon, QuestionMarkCircleIcon
+    ViewGridIcon, XIcon
 } from './icons';
 
-type OfficePage = 'Orders' | 'Products' | 'Count' | 'Warehouse Inventory' | 'Locations Inventory' | 'Customer Service Hub';
+type OfficePage = 'Orders' | 'Products' | 'Count' | 'Warehouse Inventory' | 'Locations Inventory';
 
 interface OfficeMobileNavMenuProps {
   activePage: OfficePage;
@@ -19,7 +19,6 @@ const navItems: { id: OfficePage; label: string; icon: React.ReactElement<any> }
     { id: 'Warehouse Inventory', label: 'Warehouse', icon: <WarehouseIcon /> },
     { id: 'Locations Inventory', label: 'Locations', icon: <ClipboardListIcon /> },
     { id: 'Products', label: 'Products', icon: <BoxIcon /> },
-    { id: 'Customer Service Hub', label: 'CS Hub', icon: <QuestionMarkCircleIcon /> },
 ];
 
 const OfficeMobileNavMenu: React.FC<OfficeMobileNavMenuProps> = ({ activePage, setActivePage, onLogout }) => {
@@ -63,7 +62,7 @@ const OfficeMobileNavMenu: React.FC<OfficeMobileNavMenuProps> = ({ activePage, s
       >
         <div className="p-4">
           <div className="flex justify-between items-center mb-4">
-            <h2 id="office-menu-title" className="text-lg font-bold text-gray-800">Office Menu</h2>
+            <h2 id="office-menu-title" className="text-lg font-bold text-gray-800">Logistics Menu</h2>
             <button
               onClick={() => setIsOpen(false)}
               className="p-2 text-gray-500 hover:bg-black/10 rounded-full"

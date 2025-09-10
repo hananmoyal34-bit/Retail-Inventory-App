@@ -1,22 +1,24 @@
+
 import React from 'react';
-import type { CustomerRecord, Status, SortConfig } from '../types';
-import { EditIcon } from './icons/EditIcon';
-import { DeleteIcon } from './icons/DeleteIcon';
-import { ViewIcon } from './icons/ViewIcon';
-import Tooltip from './Tooltip';
-import { SortIcon } from './icons/SortIcon';
+import type { CustomerRecord, Status, SortConfig } from '../../../types';
+import { PencilIcon as EditIcon, TrashIcon as DeleteIcon, ViewIcon, SortIcon, ChevronRightIcon } from '../../icons';
+import Tooltip from '../../Tooltip';
 
 interface CustomerTableProps {
     records: CustomerRecord[];
-    searchQuery: string;
     sortConfig: SortConfig;
-    recordToDelete: CustomerRecord | null;
-    isLoading: boolean;
     onSort: (key: keyof CustomerRecord | 'Customer') => void;
     onEdit: (record: CustomerRecord) => void;
     onDelete: (record: CustomerRecord) => void;
     onViewDetails: (record: CustomerRecord) => void;
     onStatusChange: (ticketId: string, status: Status | string) => void;
+    isClosedTab: boolean;
+    collapsedStatuses: Set<string>;
+    onToggleCollapse: (status: string) => void;
+    actionTarget: { action: string, ticketId: string } | null;
+    allHeaders: { key: keyof CustomerRecord | 'Customer'; label: string }[];
+    visibleColumnKeys: Set<keyof CustomerRecord | 'Customer'>;
+    viewOnly?: boolean;
 }
 
 const SortableHeader: React.FC<{
@@ -27,8 +29,8 @@ const SortableHeader: React.FC<{
 }> = ({ title, sortKey, sortConfig, onSort }) => {
     const isSorting = sortConfig.key === sortKey;
     return (
-        <th scope="col" className="px-6 py-3 cursor-pointer" onClick={() => onSort(sortKey)}>
-            <div className="flex items-center gap-2">
+        <th scope="col" className="px-4 py-3 cursor-pointer" onClick={() => onSort(sortKey)}>
+            <div className="flex items-center gap-1">
                 {title}
                 <SortIcon
                     direction={isSorting ? sortConfig.direction : 'none'}
@@ -38,7 +40,10 @@ const SortableHeader: React.FC<{
     );
 };
 
-const CustomerTable: React.FC<CustomerTableProps> = ({ records, searchQuery, sortConfig, onSort, onEdit, onDelete, onViewDetails, onStatusChange, recordToDelete, isLoading }) => {
+const CustomerTable: React.FC<CustomerTableProps> = ({ 
+    records, sortConfig, onSort, onEdit, onDelete, onViewDetails, onStatusChange, 
+    isClosedTab, collapsedStatuses, onToggleCollapse, actionTarget, allHeaders, visibleColumnKeys, viewOnly = false 
+}) => {
     
     const getStatusClass = (status: string) => {
         const baseStyles = "w-full text-left px-2 py-1 text-xs font-semibold rounded-md appearance-none focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-surface focus:ring-primary border";
@@ -50,158 +55,109 @@ const CustomerTable: React.FC<CustomerTableProps> = ({ records, searchQuery, sor
             default: return `${baseStyles} bg-gray-100 text-gray-700 border-gray-300`;
         }
     };
-
+    
+    const visibleHeaders = allHeaders.filter(h => visibleColumnKeys.has(h.key));
+    
     if (records.length === 0) {
-        const message = searchQuery
-            ? `No records found matching your search.`
-            : "No records found.";
-        return <p className="text-center text-on-surface-secondary py-10">{message}</p>;
+        return <p className="text-center text-on-surface-secondary py-10">No records found.</p>;
     }
 
-    let lastStatus: string | null = null;
+    const groupedRecords = records.reduce((acc, record) => {
+        const status = record.Status || 'Uncategorized';
+        if (!acc[status]) {
+            acc[status] = [];
+        }
+        acc[status].push(record);
+        return acc;
+    }, {} as Record<string, CustomerRecord[]>);
+
 
     return (
-        <>
-            {/* Mobile Card View */}
-            <div className="md:hidden p-4 space-y-4 bg-background rounded-b-xl">
-                {records.map(record => {
-                    const isActionDisabled = isLoading || recordToDelete?.TicketID === record.TicketID;
-                    return (
-                        <div key={record.TicketID} className="bg-surface rounded-lg shadow border border-border-color p-4 space-y-3" onClick={() => !isActionDisabled && onViewDetails(record)}>
-                            {/* Card Header */}
-                            <div className="flex justify-between items-start gap-2">
-                                <div>
-                                    <h3 className="font-bold text-on-surface">{record['First Name']} {record['Last Name']}</h3>
-                                    <p className="text-xs text-on-surface-secondary font-mono">#{record.TicketID}</p>
-                                </div>
-                                <select
-                                    value={record.Status}
-                                    onChange={(e) => onStatusChange(record.TicketID, e.target.value)}
-                                    className={`${getStatusClass(record.Status)} max-w-[120px] flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed`}
-                                    aria-label={`Status for ticket ${record.TicketID}`}
-                                    disabled={isActionDisabled}
-                                    onClick={(e) => e.stopPropagation()}
-                                >
-                                    <option value="New">New</option>
-                                    <option value="In Progress">In Progress</option>
-                                    <option value="Resolved">Resolved</option>
-                                    <option value="Closed">Closed</option>
-                                </select>
-                            </div>
-
-                            {/* Card Body */}
-                            <div className="text-sm text-on-surface-secondary pt-3 border-t">
-                                <p><strong>Category:</strong> {record['Ticket Category']}</p>
-                                <p><strong>Submitted:</strong> {record.Timestamp ? new Date(record.Timestamp).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : 'N/A'}</p>
-                            </div>
-
-                            {/* Card Actions */}
-                            <div className="flex justify-end items-center gap-4 pt-3 border-t" onClick={(e) => e.stopPropagation()}>
-                                <Tooltip text="View Details">
-                                    <button onClick={() => onViewDetails(record)} className="text-emerald-500 hover:text-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" aria-label="View Details" disabled={isActionDisabled}>
-                                        <ViewIcon />
-                                    </button>
-                                </Tooltip>
-                                <Tooltip text="Edit Record">
-                                    <button onClick={() => onEdit(record)} className="text-sky-500 hover:text-sky-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" aria-label="Edit" disabled={isActionDisabled}>
-                                        <EditIcon />
-                                    </button>
-                                </Tooltip>
-                                <Tooltip text="Delete Record">
-                                    <button onClick={() => onDelete(record)} className="text-red-500 hover:text-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" aria-label="Delete" disabled={isActionDisabled}>
-                                        <DeleteIcon />
-                                    </button>
-                                </Tooltip>
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
-
-            {/* Desktop Table View */}
-            <div className="hidden md:block overflow-x-auto relative max-h-[65vh]">
-                <table className="w-full text-sm text-left text-on-surface-secondary">
-                    <thead className="text-xs text-on-surface uppercase bg-gray-50 border-b-2 border-border-color sticky top-0 z-10">
-                        <tr>
-                            <SortableHeader title="Ticket ID" sortKey="TicketID" sortConfig={sortConfig} onSort={onSort} />
-                            <SortableHeader title="Customer" sortKey="Customer" sortConfig={sortConfig} onSort={onSort} />
-                            <SortableHeader title="Category" sortKey="Ticket Category" sortConfig={sortConfig} onSort={onSort} />
-                            <SortableHeader title="Submitted On" sortKey="Timestamp" sortConfig={sortConfig} onSort={onSort} />
-                            <th scope="col" className="px-6 py-3">Status</th>
-                            <th scope="col" className="px-6 py-3 text-center">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {records.map((record) => {
-                            const showStatusHeader = record.Status !== lastStatus;
-                            lastStatus = record.Status;
-                            const isActionDisabled = isLoading || recordToDelete?.TicketID === record.TicketID;
-                            
-                            return (
-                                <React.Fragment key={record.TicketID}>
-                                    {showStatusHeader && (
-                                        <tr className="bg-gray-100 sticky top-[41px] z-10">
-                                            <th colSpan={6} className="px-4 py-2 text-left text-sm font-bold text-on-surface">
-                                                {record.Status}
-                                            </th>
-                                        </tr>
-                                    )}
+        <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left text-on-surface-secondary">
+                <thead className="text-xs text-on-surface uppercase bg-gray-50 border-b-2 border-border-color sticky top-0 z-10">
+                    <tr>
+                        <th scope="col" className="px-4 py-3 w-12"></th>
+                        {visibleHeaders.map(header => (
+                            <SortableHeader key={String(header.key)} title={header.label} sortKey={header.key} sortConfig={sortConfig} onSort={onSort} />
+                        ))}
+                        <th scope="col" className="px-4 py-3 text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {Object.entries(groupedRecords).map(([status, recordsInGroup]) => {
+                        const isCollapsed = collapsedStatuses.has(status);
+                        return (
+                             <React.Fragment key={status}>
+                                <tr className="bg-gray-100/50 sticky top-[41px] z-[9]">
+                                    <th colSpan={visibleHeaders.length + 2} className="px-4 py-2 text-left text-sm font-bold text-on-surface">
+                                        <button onClick={() => onToggleCollapse(status)} className="flex items-center gap-2 w-full">
+                                            <ChevronRightIcon className={`h-5 w-5 transition-transform ${isCollapsed ? '' : 'rotate-90'}`} />
+                                            {status} ({recordsInGroup.length})
+                                        </button>
+                                    </th>
+                                </tr>
+                                {!isCollapsed && recordsInGroup.map((record) => (
                                     <tr 
-                                        className="bg-surface border-b border-border-color hover:bg-gray-50 cursor-pointer"
-                                        onClick={() => !isActionDisabled && onViewDetails(record)}
+                                        key={record.TicketID}
+                                        className="bg-surface border-b border-border-color hover:bg-gray-50"
                                     >
-                                        <th scope="row" className="px-6 py-4 font-medium text-on-surface whitespace-nowrap">
-                                            {record.TicketID}
-                                        </th>
-                                        <td className="px-6 py-4">
-                                            <div className="font-semibold text-on-surface">{record['First Name']} {record['Last Name']}</div>
-                                            <div className="text-xs text-on-surface-secondary">{record['Email Address']}</div>
-                                        </td>
-                                        <td className="px-6 py-4">{record['Ticket Category']}</td>
-                                        <td className="px-6 py-4">
-                                            {record.Timestamp ? new Date(record.Timestamp).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : 'N/A'}
-                                        </td>
-                                        <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
-                                        <select
+                                        <td className="px-4 py-3">
+                                            <select
                                                 value={record.Status}
                                                 onChange={(e) => onStatusChange(record.TicketID, e.target.value)}
-                                                className={`${getStatusClass(record.Status)} disabled:opacity-50 disabled:cursor-not-allowed`}
+                                                className={getStatusClass(record.Status)}
                                                 aria-label={`Status for ticket ${record.TicketID}`}
-                                                disabled={isActionDisabled}
+                                                disabled={actionTarget?.ticketId === record.TicketID || viewOnly}
+                                                onClick={(e) => e.stopPropagation()}
                                             >
                                                 <option value="New">New</option>
                                                 <option value="In Progress">In Progress</option>
-                                                <option value="Resolved">Resolved</option>
                                                 <option value="Closed">Closed</option>
                                             </select>
                                         </td>
-                                        <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
-                                            <div className="flex items-center justify-center gap-4">
+                                        {visibleHeaders.map(header => {
+                                            let content;
+                                            if (header.key === 'Customer') {
+                                                content = `${record['First Name']} ${record['Last Name']}`;
+                                            } else if (header.key === 'Timestamp') {
+                                                content = record.Timestamp ? new Date(record.Timestamp).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : 'N/A';
+                                            } else {
+                                                content = record[header.key as keyof CustomerRecord];
+                                            }
+                                            return <td key={`${record.TicketID}-${String(header.key)}`} className="px-4 py-3">{content}</td>
+                                        })}
+                                        <td className="px-4 py-3 text-center">
+                                             <div className="flex items-center justify-center gap-4">
                                                 <Tooltip text="View Details">
-                                                    <button onClick={() => onViewDetails(record)} className="text-emerald-500 hover:text-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" aria-label="View Details" disabled={isActionDisabled}>
+                                                    <button onClick={(e) => { e.stopPropagation(); onViewDetails(record); }} className="text-emerald-500 hover:text-emerald-700 disabled:opacity-50" disabled={actionTarget?.ticketId === record.TicketID} aria-label="View Details">
                                                         <ViewIcon />
                                                     </button>
                                                 </Tooltip>
-                                                <Tooltip text="Edit Record">
-                                                    <button onClick={() => onEdit(record)} className="text-sky-500 hover:text-sky-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" aria-label="Edit" disabled={isActionDisabled}>
-                                                        <EditIcon />
-                                                    </button>
-                                                </Tooltip>
-                                                <Tooltip text="Delete Record">
-                                                    <button onClick={() => onDelete(record)} className="text-red-500 hover:text-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" aria-label="Delete" disabled={isActionDisabled}>
-                                                        <DeleteIcon />
-                                                    </button>
-                                                </Tooltip>
+                                                {!viewOnly && (
+                                                    <>
+                                                        <Tooltip text="Edit Record">
+                                                            <button onClick={(e) => { e.stopPropagation(); onEdit(record); }} className="text-sky-500 hover:text-sky-700 disabled:opacity-50" disabled={actionTarget?.ticketId === record.TicketID} aria-label="Edit">
+                                                                <EditIcon />
+                                                            </button>
+                                                        </Tooltip>
+                                                        <Tooltip text="Delete Record">
+                                                            <button onClick={(e) => { e.stopPropagation(); onDelete(record); }} className="text-red-500 hover:text-red-700 disabled:opacity-50" disabled={actionTarget?.ticketId === record.TicketID} aria-label="Delete">
+                                                                <DeleteIcon />
+                                                            </button>
+                                                        </Tooltip>
+                                                    </>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>
-                                </React.Fragment>
-                            )
-                        })}
-                    </tbody>
-                </table>
-            </div>
-        </>
+                                ))}
+                            </React.Fragment>
+                        );
+                    })}
+                </tbody>
+            </table>
+        </div>
     );
 };
 

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Page } from '../types';
-import { BoxIcon, ClipboardListIcon, CogIcon, ChevronDownIcon, HomeIcon, LocationMarkerIcon, LoginIcon, QuestionMarkCircleIcon, TableCellsIcon, TruckIcon, UsersIcon, WarehouseIcon, DocumentTextIcon } from './icons';
+import { BoxIcon, ClipboardListIcon, CogIcon, ChevronDownIcon, HomeIcon, LocationMarkerIcon, LoginIcon, QuestionMarkCircleIcon, TableCellsIcon, TruckIcon, UsersIcon, WarehouseIcon, DocumentTextIcon, UserCircleIcon, CreditCardIcon, FolderIcon } from './icons';
 
 interface HeaderProps {
   activePage: Page;
@@ -10,30 +10,43 @@ interface HeaderProps {
 
 const Header: React.FC<HeaderProps> = ({ activePage, setActivePage, onLogout }) => {
   const [isManageMenuOpen, setManageMenuOpen] = useState(false);
+  const [isViewerMenuOpen, setViewerMenuOpen] = useState(false);
   const manageMenuRef = useRef<HTMLDivElement>(null);
+  const viewerMenuRef = useRef<HTMLDivElement>(null);
 
   const mainNavItems = [
     { id: Page.DASHBOARD, label: 'Dashboard', icon: <HomeIcon /> },
     { id: Page.ORDERS, label: 'Orders', icon: <TruckIcon /> },
-    { id: Page.COUNT, label: 'Count', icon: <TableCellsIcon /> },
     { id: Page.WAREHOUSE_INVENTORY, label: 'Warehouse Inventory', icon: <WarehouseIcon /> },
-    { id: Page.INVENTORY_LOG, label: 'Locations Inventory', icon: <ClipboardListIcon /> },
+    { id: Page.TRANSACTION_LOGS, label: 'Inventory Report', icon: <ClipboardListIcon /> },
   ];
 
   const manageNavItems = [
     { id: Page.PRODUCTS, label: 'Products', icon: <BoxIcon /> },
     { id: Page.LOCATIONS, label: 'Locations', icon: <LocationMarkerIcon /> },
     { id: Page.USERS, label: 'Users', icon: <UsersIcon /> },
-    { id: Page.ACCOUNTS, label: 'Accounts', icon: <DocumentTextIcon /> },
-    { id: Page.CUSTOMER_SERVICE, label: 'Customer Service', icon: <QuestionMarkCircleIcon /> },
+    { id: Page.COUNT, label: 'Count', icon: <TableCellsIcon /> },
+    { id: Page.COUNT_LOG, label: 'Count Log', icon: <TableCellsIcon /> },
+  ];
+  
+  const viewerNavItems = [
+    { id: Page.VIEWER_CS_HUB, label: 'CS Hub', icon: <UserCircleIcon /> },
+    { id: Page.VIEWER_FINANCING, label: 'Financing', icon: <CreditCardIcon /> },
+    { id: Page.VIEWER_ACCOUNTS, label: 'Accounts', icon: <FolderIcon /> },
+    { id: Page.VIEWER_TASKS, label: 'Tasks', icon: <ClipboardListIcon /> },
+    { id: Page.VIEWER_DIRECTORY, label: 'Directory', icon: <UsersIcon /> },
   ];
 
   const isManagePageActive = manageNavItems.some(item => item.id === activePage);
+  const isViewerPageActive = viewerNavItems.some(item => item.id === activePage);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (manageMenuRef.current && !manageMenuRef.current.contains(event.target as Node)) {
         setManageMenuOpen(false);
+      }
+      if (viewerMenuRef.current && !viewerMenuRef.current.contains(event.target as Node)) {
+        setViewerMenuOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -42,7 +55,7 @@ const Header: React.FC<HeaderProps> = ({ activePage, setActivePage, onLogout }) 
     };
   }, []);
 
-  const NavButton: React.FC<{ item: { id: Page, label: string, icon: React.ReactElement<any> }, isMain?: boolean }> = ({ item, isMain = true }) => {
+  const NavButton: React.FC<{ item: { id: Page, label: string, icon: React.ReactElement<any> }, isMain?: boolean, closeMenu?: () => void }> = ({ item, isMain = true, closeMenu }) => {
     const isActive = activePage === item.id;
     const className = isMain 
       ? `inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${isActive ? 'border-indigo-500 text-gray-900' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}`
@@ -52,7 +65,7 @@ const Header: React.FC<HeaderProps> = ({ activePage, setActivePage, onLogout }) 
         <button
             onClick={() => {
                 setActivePage(item.id);
-                if (!isMain) setManageMenuOpen(false);
+                if (closeMenu) closeMenu();
             }}
             className={className}
         >
@@ -74,6 +87,28 @@ const Header: React.FC<HeaderProps> = ({ activePage, setActivePage, onLogout }) 
               {mainNavItems.map(item => (
                 <NavButton key={item.id} item={item} />
               ))}
+               <div className="relative" ref={viewerMenuRef}>
+                 <button
+                  onClick={() => setViewerMenuOpen(!isViewerMenuOpen)}
+                  className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
+                    isViewerPageActive
+                      ? 'border-indigo-500 text-gray-900'
+                      : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                  }`}
+                >
+                  <span>Office</span>
+                  <ChevronDownIcon className={`ml-1 h-5 w-5 transition-transform ${isViewerMenuOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {isViewerMenuOpen && (
+                    <div className="origin-top-right absolute left-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none">
+                        <div className="py-1">
+                            {viewerNavItems.map(item => (
+                                <NavButton key={item.id} item={item} isMain={false} closeMenu={() => setViewerMenuOpen(false)} />
+                            ))}
+                        </div>
+                    </div>
+                )}
+              </div>
               <div className="relative" ref={manageMenuRef}>
                  <button
                   onClick={() => setManageMenuOpen(!isManageMenuOpen)}
@@ -91,7 +126,7 @@ const Header: React.FC<HeaderProps> = ({ activePage, setActivePage, onLogout }) 
                     <div className="origin-top-right absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none">
                         <div className="py-1">
                             {manageNavItems.map(item => (
-                                <NavButton key={item.id} item={item} isMain={false} />
+                                <NavButton key={item.id} item={item} isMain={false} closeMenu={() => setManageMenuOpen(false)} />
                             ))}
                         </div>
                     </div>

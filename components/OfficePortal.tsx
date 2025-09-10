@@ -5,18 +5,17 @@ import InventoryCount from './InventoryCount';
 import Orders from './Orders';
 import InventoryLog from './InventoryLog';
 import WarehouseInventory from './WarehouseInventory';
-import { BoxIcon, ClipboardListIcon, LoginIcon, TableCellsIcon, TruckIcon, WarehouseIcon, QuestionMarkCircleIcon } from './icons';
+import { BoxIcon, ClipboardListIcon, LoginIcon, TableCellsIcon, TruckIcon, WarehouseIcon } from './icons';
 import OfficeMobileNavMenu from './OfficeMobileNavMenu';
-import CustomerServiceHub from './customer_service_hub';
 
-interface OfficePortalProps {
+interface LogisticsPortalProps {
   user: User;
   onLogout: () => void;
 }
 
-type OfficePage = 'Orders' | 'Products' | 'Count' | 'Warehouse Inventory' | 'Locations Inventory' | 'Customer Service Hub';
+type OfficePage = 'Orders' | 'Products' | 'Count' | 'Warehouse Inventory' | 'Locations Inventory';
 
-const OfficePortal: React.FC<OfficePortalProps> = ({ user, onLogout }) => {
+const LogisticsPortal: React.FC<LogisticsPortalProps> = ({ user, onLogout }) => {
   const [activePage, setActivePage] = useState<OfficePage>('Orders');
 
   const navItems: { id: OfficePage; label: string; icon: React.ReactNode }[] = [
@@ -25,7 +24,6 @@ const OfficePortal: React.FC<OfficePortalProps> = ({ user, onLogout }) => {
     { id: 'Warehouse Inventory', label: 'Warehouse', icon: <WarehouseIcon className="h-5 w-5" /> },
     { id: 'Locations Inventory', label: 'Locations', icon: <ClipboardListIcon className="h-5 w-5" /> },
     { id: 'Products', label: 'Products', icon: <BoxIcon className="h-5 w-5" /> },
-    { id: 'Customer Service Hub', label: 'CS Hub', icon: <QuestionMarkCircleIcon className="h-5 w-5" /> },
   ];
 
   const renderPage = () => {
@@ -35,7 +33,6 @@ const OfficePortal: React.FC<OfficePortalProps> = ({ user, onLogout }) => {
       case 'Count': return <InventoryCount />;
       case 'Warehouse Inventory': return <WarehouseInventory />;
       case 'Locations Inventory': return <InventoryLog />;
-      case 'Customer Service Hub': return <CustomerServiceHub />;
       default: return <Orders />;
     }
   };
@@ -47,7 +44,7 @@ const OfficePortal: React.FC<OfficePortalProps> = ({ user, onLogout }) => {
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center">
               <span className="text-2xl font-bold text-indigo-600">Inv<span className="text-gray-700">Sys</span></span>
-              <span className="ml-4 text-sm font-medium text-gray-500 border-l pl-4">Office Portal</span>
+              <span className="ml-4 text-sm font-medium text-gray-500 border-l pl-4">Logistics Portal</span>
             </div>
             <div className="flex items-center">
               <span className="hidden sm:inline text-sm text-gray-700 mr-4">Welcome, {user.name}</span>
@@ -86,4 +83,4 @@ const OfficePortal: React.FC<OfficePortalProps> = ({ user, onLogout }) => {
   );
 };
 
-export default OfficePortal;
+export default LogisticsPortal;

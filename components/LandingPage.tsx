@@ -29,7 +29,7 @@ const PortalCard: React.FC<{
 
 
 const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
-  const [loginRole, setLoginRole] = useState<'Admin' | 'Manager' | 'Office' | 'Accounting' | null>(null);
+  const [loginRole, setLoginRole] = useState<'Admin' | 'Manager' | 'Office' | null>(null);
 
   if (loginRole) {
     return (
@@ -49,8 +49,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
         </h1>
         <p className="mt-4 text-xl text-gray-600">Your Modern Retail Inventory System</p>
       </header>
-      <main className="w-full max-w-4xl">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+      <main className="w-full max-w-5xl">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <PortalCard
                 title="Admin Portal"
                 description="Full access to all system features, settings, and user management."
@@ -68,20 +68,12 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                 iconTextColor="text-blue-600"
             />
              <PortalCard
-                title="Office Portal"
+                title="Logistics Portal"
                 description="View operational data including orders, inventory, and counts."
                 icon={<ClipboardListIcon className="h-8 w-8" />}
                 onClick={() => setLoginRole('Office')}
                 iconBgColor="bg-orange-100"
                 iconTextColor="text-orange-600"
-            />
-            <PortalCard
-                title="Accounting Portal"
-                description="Access financial data, account balances, and reporting features."
-                icon={<DocumentTextIcon className="h-8 w-8" />}
-                onClick={() => setLoginRole('Accounting')}
-                iconBgColor="bg-purple-100"
-                iconTextColor="text-purple-600"
             />
         </div>
       </main>

@@ -1,12 +1,58 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { getProducts, getLocations, getInventoryLogs, getCurrentDateInTimezone, formatDateToYMD, getAppSheetProducts, formatToLocaleString, getCountLogs } from '../services/dataService';
-import { submitInventoryCount, submitWarehouseCount } from '../services/writeService';
-// FIX: Import User type to handle user information for warehouse count submission.
-import { CountEntry, Product, Location, InventoryLog, WarehouseCountEntry, AppSheetProduct, User, CountLog } from '../types';
+import { getProducts, getLocations, getInventoryLogs, getCurrentDateInTimezone, formatDateToYMD, getAppSheetProducts, formatToLocaleString, getCountLogs, getDraftCounts } from '../services/dataService';
+import { submitInventoryCount, submitWarehouseCount, saveDraftCount } from '../services/writeService';
+import { CountEntry, Product, Location, InventoryLog, WarehouseCountEntry, AppSheetProduct, User, CountLog, DraftCount, SaveDraftPayload } from '../types';
 import AccessibleNumberInput from './AccessibleNumberInput';
 import DatePicker from './DatePicker';
 import Modal from './Modal';
-import { PencilIcon, CheckIcon, XIcon, SearchIcon, ChevronRightIcon, CheckCircleIcon, ChevronDownIcon } from './icons';
+import { PencilIcon, CheckIcon, XIcon, SearchIcon, ChevronRightIcon, CheckCircleIcon, ChevronDownIcon, ClockIcon } from './icons';
+
+const formatTimeAgo = (isoString: string | null, now: Date): string => {
+  if (!isoString) {
+    return 'never';
+  }
+  try {
+    const savedDate = new Date(isoString);
+    if (isNaN(savedDate.getTime())) {
+        return 'invalid date';
+    }
+
+    const seconds = Math.floor((now.getTime() - savedDate.getTime()) / 1000);
+
+    if (seconds < 0) {
+      return 'just now';
+    }
+    if (seconds < 10) {
+      return 'a few seconds ago';
+    }
+    if (seconds < 60) {
+      return `${seconds} seconds ago`;
+    }
+    
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) {
+      return minutes === 1 ? 'a minute ago' : `${minutes} minutes ago`;
+    }
+    
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) {
+      return hours === 1 ? 'an hour ago' : `${hours} hours ago`;
+    }
+  
+    const days = Math.floor(hours / 24);
+    if (days === 1) {
+      return 'yesterday';
+    }
+    if (days < 7) {
+      return `${days} days ago`;
+    }
+  
+    return `on ${savedDate.toLocaleDateString()}`; // Fallback for older dates
+  } catch (e) {
+    return 'invalid date';
+  }
+};
+
 
 const InventoryCount: React.FC = () => {
   const [date, setDate] = useState(getCurrentDateInTimezone());
@@ -21,6 +67,7 @@ const InventoryCount: React.FC = () => {
   const [locations, setLocations] = useState<Location[]>([]);
   const [inventoryLogs, setInventoryLogs] = useState<InventoryLog[]>([]);
   const [countLogs, setCountLogs] = useState<CountLog[]>([]);
+  const [draftCounts, setDraftCounts] = useState<DraftCount[]>([]);
   const [loading, setLoading] = useState(true);
   
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -40,18 +87,31 @@ const InventoryCount: React.FC = () => {
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [visibleNotes, setVisibleNotes] = useState<Set<string>>(new Set());
 
+  // Draft and Finalized State
+  const [isFinalized, setIsFinalized] = useState(false);
+  const [draftSaveStatus, setDraftSaveStatus] = useState<{ saving: boolean; lastSaved: string | null }>({ saving: false, lastSaved: null });
+  const [user, setUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    const savedUserJson = sessionStorage.getItem('inventory_system_user');
+    if (savedUserJson) {
+        setUser(JSON.parse(savedUserJson));
+    }
+  }, []);
+
   const fetchData = async () => {
     setLoading(true);
     setSubmissionStatus({ type: null, message: '' });
     setTouchedRows(new Set());
     setWarehouseSelections({});
     try {
-      const [productsData, locationsData, logsData, appSheetProductsData, countsData] = await Promise.all([
+      const [productsData, locationsData, logsData, appSheetProductsData, countsData, draftsData] = await Promise.all([
         getProducts(),
         getLocations(),
         getInventoryLogs(),
         getAppSheetProducts(),
         getCountLogs(),
+        getDraftCounts(),
       ]);
       setProducts(productsData);
       setLocations(locationsData);
@@ -62,6 +122,7 @@ const InventoryCount: React.FC = () => {
       }
       setInventoryLogs(logsData);
       setCountLogs(countsData);
+      setDraftCounts(draftsData);
     } catch (error) {
       console.error("Failed to fetch data for inventory count", error);
       setSubmissionStatus({ type: 'error', message: 'Failed to load data.' });
@@ -75,10 +136,14 @@ const InventoryCount: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    const timer = setInterval(() => setCurrentTime(new Date()), 5000); // Update every 5 seconds
     return () => clearInterval(timer);
   }, []);
   
+  const lastSavedText = useMemo(() => {
+    return formatTimeAgo(draftSaveStatus.lastSaved, currentTime);
+  }, [draftSaveStatus.lastSaved, currentTime]);
+
   const openingStock = useMemo(() => {
     if (loading) return new Map<string, number>();
 
@@ -144,29 +209,64 @@ const InventoryCount: React.FC = () => {
   }, [date, selectedLocation, inventoryLogs, countLogs, products, loading]);
   
   useEffect(() => {
-    if (loading || products.length === 0) return;
+    if (loading || products.length === 0 || !selectedLocation || !date) return;
     
     if(activeTab === 'count') {
-        const initialEntries = products.map(product => {
-          const calculatedValue = openingStock.get(product.productName) || 0;
-          return {
-              productID: product.productID,
-              productName: product.productName,
-              openingStock: calculatedValue,
-              calculatedOpeningStock: calculatedValue,
-              isOpeningStockManual: false,
-              stockIn: 0,
-              inStoreSales: 0,
-              warehouseShipping: 0,
-              physicalEndCount: 0,
-          };
-        });
-        setCountEntries(initialEntries);
+        const finalizedLogExists = countLogs.some(log => 
+            log.location === selectedLocation && formatDateToYMD(log.date) === date
+        );
+        setIsFinalized(finalizedLogExists);
+
+        if (finalizedLogExists) {
+            const finalizedEntries = products.map(product => {
+                const log = countLogs.find(l => l.location === selectedLocation && formatDateToYMD(l.date) === date && l.productName === product.productName);
+                return {
+                    productID: product.productID, productName: product.productName,
+                    openingStock: log?.openingStock ?? 0, calculatedOpeningStock: 0,
+                    isOpeningStockManual: false, stockIn: log?.stockIn ?? 0,
+                    inStoreSales: log?.inStoreSales ?? 0, warehouseShipping: log?.warehouseShipping ?? 0,
+                    physicalEndCount: log?.physicalEndCount ?? 0,
+                };
+            });
+            setCountEntries(finalizedEntries);
+            setDraftSaveStatus({ saving: false, lastSaved: null });
+        } else {
+            const draftsForDay = draftCounts.filter(d => d.location === selectedLocation && formatDateToYMD(d.date) === date);
+            if (draftsForDay.length > 0) {
+                const draftEntries = products.map(product => {
+                    const draft = draftsForDay.find(d => d.productName === product.productName);
+                    const calculatedValue = openingStock.get(product.productName) || 0;
+                    return {
+                        productID: product.productID, productName: product.productName,
+                        openingStock: draft?.openingStock ?? calculatedValue, calculatedOpeningStock: calculatedValue,
+                        isOpeningStockManual: draft?.isOpeningStockManual ?? false, stockIn: draft?.stockIn ?? 0,
+                        inStoreSales: draft?.inStoreSales ?? 0, warehouseShipping: draft?.warehouseShipping ?? 0,
+                        physicalEndCount: draft?.physicalEndCount ?? 0,
+                    };
+                });
+                setCountEntries(draftEntries);
+                const latestDraftTimestamp = draftsForDay.length > 0 ? draftsForDay[0].timestamp : null;
+                setDraftSaveStatus({ saving: false, lastSaved: latestDraftTimestamp });
+            } else {
+                const initialEntries = products.map(product => {
+                    const calculatedValue = openingStock.get(product.productName) || 0;
+                    return {
+                        productID: product.productID, productName: product.productName,
+                        openingStock: calculatedValue, calculatedOpeningStock: calculatedValue,
+                        isOpeningStockManual: false, stockIn: 0, inStoreSales: 0,
+                        warehouseShipping: 0, physicalEndCount: 0,
+                    };
+                });
+                setCountEntries(initialEntries);
+                setDraftSaveStatus({ saving: false, lastSaved: null });
+            }
+        }
+        
         setEditingOpeningStock(null);
         setTouchedRows(new Set());
-        setExpandedProducts(new Set()); // Collapse all by default
+        setExpandedProducts(new Set());
     }
-  }, [selectedLocation, date, openingStock, products, loading, activeTab]);
+}, [selectedLocation, date, openingStock, products, loading, activeTab, countLogs, draftCounts]);
 
   const handleEntryChange = (productID: string, field: keyof CountEntry, value: number) => {
     setTouchedRows(prev => new Set(prev).add(productID));
@@ -233,11 +333,41 @@ const InventoryCount: React.FC = () => {
 
     if (result.success) {
         setSubmissionStatus({ type: 'success', message: result.message });
-        // Don't call fetchData here; let the success screen's button do it.
+        await fetchData();
     } else {
         setSubmissionStatus({ type: 'error', message: result.message });
     }
     setIsSubmitting(false);
+  };
+
+  const handleSaveDraft = async () => {
+    if (!user) {
+        setSubmissionStatus({ type: 'error', message: 'User not found. Cannot save draft.' });
+        return;
+    }
+    if (touchedRows.size === 0) {
+      setSubmissionStatus({ type: 'error', message: 'No changes to save as draft.' });
+      setTimeout(() => setSubmissionStatus({ type: null, message: ''}), 3000);
+      return;
+    }
+    setDraftSaveStatus(prev => ({ ...prev, saving: true }));
+    setSubmissionStatus({ type: null, message: '' });
+
+    const payload: SaveDraftPayload = {
+        date: new Date(date + 'T12:00:00Z').toISOString(),
+        location: selectedLocation,
+        userName: user.name,
+        entries: countEntries,
+    };
+    const result = await saveDraftCount(payload);
+    if (result.success && result.timestamp) {
+        setDraftSaveStatus({ saving: false, lastSaved: result.timestamp });
+        setTouchedRows(new Set()); // Reset touched rows after successful save
+        getDraftCounts().then(setDraftCounts);
+    } else {
+        setSubmissionStatus({ type: 'error', message: result.message });
+        setDraftSaveStatus(prev => ({ ...prev, saving: false }));
+    }
   };
   
   // --- Warehouse Count Logic ---
@@ -388,14 +518,12 @@ const InventoryCount: React.FC = () => {
     const [year, month, day] = date.split('-').map(Number);
     submissionTimestamp.setFullYear(year, month - 1, day);
 
-    // FIX: Get user from session storage to include in the payload.
-    const savedUserJson = sessionStorage.getItem('inventory_portal_user');
-    const user: User | null = savedUserJson ? JSON.parse(savedUserJson) : null;
+    const savedUserJson = sessionStorage.getItem('inventory_system_user');
+    const currentUser: User | null = savedUserJson ? JSON.parse(savedUserJson) : null;
 
     const payload = {
         date: submissionTimestamp.toISOString(),
-        // FIX: Added missing 'userName' property.
-        userName: user?.name || 'System',
+        userName: currentUser?.name || 'System',
         entries: entriesToSubmit,
     };
     
@@ -438,7 +566,7 @@ const InventoryCount: React.FC = () => {
   // -----------------------------
 
   const renderVariance = (entry: CountEntry) => {
-    const calculatedEndCount = entry.openingStock + entry.stockIn - entry.inStoreSales - entry.warehouseShipping;
+    const calculatedEndCount = entry.openingStock + entry.stockIn - entry.inStoreSales + entry.warehouseShipping;
     const variance = entry.physicalEndCount - calculatedEndCount;
     const color = variance === 0 ? 'text-green-600' : 'text-red-600';
     const sign = variance > 0 ? '+' : '';
@@ -591,7 +719,7 @@ const InventoryCount: React.FC = () => {
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Opening (WAS)</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock In (+)</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sales (-)</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Shipping (-)</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Shipping (+)</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Calculated End</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Physical End Count</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Variance</th>
@@ -599,7 +727,7 @@ const InventoryCount: React.FC = () => {
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {countEntries.map(entry => {
-                    const calculatedEndCount = entry.openingStock + entry.stockIn - entry.inStoreSales - entry.warehouseShipping;
+                    const calculatedEndCount = entry.openingStock + entry.stockIn - entry.inStoreSales + entry.warehouseShipping;
                     return (
                       <tr key={entry.productID} className="odd:bg-white even:bg-gray-50">
                         <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-800">{entry.productName}</td>
@@ -621,17 +749,17 @@ const InventoryCount: React.FC = () => {
                             <div className="flex items-center space-x-2">
                               <span>{entry.openingStock}</span>
                               {entry.isOpeningStockManual && <span title={`Manually set. Calculated was ${entry.calculatedOpeningStock}.`} className="text-blue-500 font-bold cursor-help">*</span>}
-                              <button onClick={() => handleEditOpeningStock(entry)} className="p-1 rounded-md text-gray-400 hover:text-indigo-600">
+                              <button onClick={() => handleEditOpeningStock(entry)} className="p-1 rounded-md text-gray-400 hover:text-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed" disabled={isFinalized}>
                                 <PencilIcon className="w-5 h-5" />
                               </button>
                             </div>
                           )}
                         </td>
-                        <td className="px-4 py-3"><AccessibleNumberInput value={entry.stockIn} onChange={(newValue) => handleEntryChange(entry.productID, 'stockIn', newValue)} ariaLabel={`Stock in for ${entry.productName}`} /></td>
-                        <td className="px-4 py-3"><AccessibleNumberInput value={entry.inStoreSales} onChange={(newValue) => handleEntryChange(entry.productID, 'inStoreSales', newValue)} ariaLabel={`In-store sales for ${entry.productName}`} /></td>
-                        <td className="px-4 py-3"><AccessibleNumberInput value={entry.warehouseShipping} onChange={(newValue) => handleEntryChange(entry.productID, 'warehouseShipping', newValue)} ariaLabel={`Warehouse shipping for ${entry.productName}`} /></td>
+                        <td className="px-4 py-3"><AccessibleNumberInput value={entry.stockIn} onChange={(newValue) => handleEntryChange(entry.productID, 'stockIn', newValue)} ariaLabel={`Stock in for ${entry.productName}`} disabled={isFinalized} /></td>
+                        <td className="px-4 py-3"><AccessibleNumberInput value={entry.inStoreSales} onChange={(newValue) => handleEntryChange(entry.productID, 'inStoreSales', newValue)} ariaLabel={`In-store sales for ${entry.productName}`} disabled={isFinalized} /></td>
+                        <td className="px-4 py-3"><AccessibleNumberInput value={entry.warehouseShipping} onChange={(newValue) => handleEntryChange(entry.productID, 'warehouseShipping', newValue)} ariaLabel={`Warehouse shipping for ${entry.productName}`} disabled={isFinalized} /></td>
                         <td className="px-4 py-3 text-sm font-semibold text-gray-600">{calculatedEndCount}</td>
-                        <td className="px-4 py-3"><AccessibleNumberInput value={entry.physicalEndCount} onChange={(newValue) => handleEntryChange(entry.productID, 'physicalEndCount', newValue)} inputClassName="bg-yellow-100 font-semibold" ariaLabel={`Physical end count for ${entry.productName}`} /></td>
+                        <td className="px-4 py-3"><AccessibleNumberInput value={entry.physicalEndCount} onChange={(newValue) => handleEntryChange(entry.productID, 'physicalEndCount', newValue)} inputClassName="bg-yellow-100 font-semibold" ariaLabel={`Physical end count for ${entry.productName}`} disabled={isFinalized} /></td>
                         <td className="px-4 py-3 text-sm">{renderVariance(entry)}</td>
                       </tr>
                     );
@@ -648,7 +776,7 @@ const InventoryCount: React.FC = () => {
                 <button onClick={collapseAll} className="px-3 py-1 text-xs font-medium text-gray-700 bg-gray-200 rounded-md">Collapse All</button>
               </div>
              {countEntries.map(entry => {
-                const calculatedEndCount = entry.openingStock + entry.stockIn - entry.inStoreSales - entry.warehouseShipping;
+                const calculatedEndCount = entry.openingStock + entry.stockIn - entry.inStoreSales + entry.warehouseShipping;
                 const isExpanded = expandedProducts.has(entry.productID);
                 return (
                     <div key={entry.productID} className="bg-white rounded-lg shadow-md transition-all duration-200">
@@ -668,6 +796,7 @@ const InventoryCount: React.FC = () => {
                                       onChange={(newValue) => handleEntryChange(entry.productID, 'physicalEndCount', newValue)} 
                                       inputClassName="bg-yellow-100 font-semibold" 
                                       ariaLabel={`Physical end count for ${entry.productName}`} 
+                                      disabled={isFinalized}
                                     />
                                   </div>
                                   <div className="mt-3 flex justify-between items-center text-sm">
@@ -690,7 +819,7 @@ const InventoryCount: React.FC = () => {
                                     ) : (
                                         <div className="flex items-center space-x-2">
                                             <span className="font-semibold text-gray-800">{entry.openingStock}</span>
-                                            <button onClick={() => handleEditOpeningStock(entry)} className="p-2 text-gray-400 hover:text-indigo-600 rounded-md"><PencilIcon className="w-6 h-6" /></button>
+                                            <button onClick={() => handleEditOpeningStock(entry)} className="p-2 text-gray-400 hover:text-indigo-600 rounded-md disabled:opacity-50 disabled:cursor-not-allowed" disabled={isFinalized}><PencilIcon className="w-6 h-6" /></button>
                                         </div>
                                     )}
                                 </div>
@@ -698,15 +827,15 @@ const InventoryCount: React.FC = () => {
                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                     <div>
                                         <p className="block text-sm font-medium text-gray-700 mb-1">Stock In (+)</p>
-                                        <AccessibleNumberInput value={entry.stockIn} onChange={(newValue) => handleEntryChange(entry.productID, 'stockIn', newValue)} ariaLabel={`Stock in for ${entry.productName}`} />
+                                        <AccessibleNumberInput value={entry.stockIn} onChange={(newValue) => handleEntryChange(entry.productID, 'stockIn', newValue)} ariaLabel={`Stock in for ${entry.productName}`} disabled={isFinalized} />
                                     </div>
                                      <div>
                                         <p className="block text-sm font-medium text-gray-700 mb-1">Sales (-)</p>
-                                        <AccessibleNumberInput value={entry.inStoreSales} onChange={(newValue) => handleEntryChange(entry.productID, 'inStoreSales', newValue)} ariaLabel={`In-store sales for ${entry.productName}`} />
+                                        <AccessibleNumberInput value={entry.inStoreSales} onChange={(newValue) => handleEntryChange(entry.productID, 'inStoreSales', newValue)} ariaLabel={`In-store sales for ${entry.productName}`} disabled={isFinalized} />
                                     </div>
                                      <div>
-                                        <p className="block text-sm font-medium text-gray-700 mb-1">Shipping (-)</p>
-                                        <AccessibleNumberInput value={entry.warehouseShipping} onChange={(newValue) => handleEntryChange(entry.productID, 'warehouseShipping', newValue)} ariaLabel={`Warehouse shipping for ${entry.productName}`} />
+                                        <p className="block text-sm font-medium text-gray-700 mb-1">Shipping (+)</p>
+                                        <AccessibleNumberInput value={entry.warehouseShipping} onChange={(newValue) => handleEntryChange(entry.productID, 'warehouseShipping', newValue)} ariaLabel={`Warehouse shipping for ${entry.productName}`} disabled={isFinalized} />
                                     </div>
                                 </div>
                             </div>
@@ -716,30 +845,32 @@ const InventoryCount: React.FC = () => {
              })}
            </div>
 
-          {/* Sticky Footer for Mobile */}
-          <div className="md:hidden sticky bottom-0 bg-white p-4 border-t border-gray-200 shadow-top z-10">
-            <div className="flex justify-end items-center space-x-4">
-                {submissionStatus.message && !isConfirmModalOpen && <p className={`text-sm font-medium ${submissionStatus.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>{submissionStatus.message}</p>}
-                <button onClick={handleOpenConfirmModal} className="bg-indigo-600 text-white px-8 py-3 text-base font-semibold rounded-md shadow-sm hover:bg-indigo-700 disabled:bg-indigo-400 disabled:cursor-not-allowed transition-colors" disabled={isSubmitting || loading}>
-                    {isSubmitting ? 'Submitting...' : 'Submit'}
-                </button>
-            </div>
-          </div>
-          
-          {/* Footer for Desktop/Tablet */}
-          <div className="hidden md:flex justify-end items-center space-x-4 mt-4">
-            {submissionStatus.message && (
-              <p className={`text-sm font-medium ${submissionStatus.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>
-                {submissionStatus.message}
-              </p>
+          <div className="sticky bottom-0 bg-white p-4 border-t border-gray-200 shadow-top z-10">
+            {isFinalized ? (
+                <div className="bg-green-100 text-green-800 p-4 rounded-md text-center font-semibold flex items-center justify-center gap-2">
+                    <CheckCircleIcon className="h-6 w-6"/>
+                    <span>This count has been finalized and cannot be edited.</span>
+                </div>
+            ) : (
+                <div className="flex flex-col sm:flex-row justify-end items-center gap-4">
+                    <div className="flex items-center gap-2 text-sm text-gray-500">
+                        {draftSaveStatus.saving ? (
+                            <><div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-gray-500"></div><span>Saving draft...</span></>
+                        ) : draftSaveStatus.lastSaved ? (
+                            <><ClockIcon className="h-4 w-4" /><span>Last saved: {lastSavedText}</span></>
+                        ) : (<span className="italic">No draft saved for this date.</span>)}
+                    </div>
+                    {submissionStatus.type === 'error' && <p className="text-sm font-medium text-red-600">{submissionStatus.message}</p>}
+                    <div className="flex items-center gap-2">
+                        <button onClick={handleSaveDraft} disabled={isSubmitting || draftSaveStatus.saving} className="bg-gray-200 text-gray-800 px-4 py-2 text-base font-semibold rounded-md shadow-sm hover:bg-gray-300 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors">
+                            Save Draft
+                        </button>
+                        <button onClick={handleOpenConfirmModal} className="bg-indigo-600 text-white px-4 py-2 text-base font-semibold rounded-md shadow-sm hover:bg-indigo-700 disabled:bg-indigo-400 disabled:cursor-not-allowed transition-colors" disabled={isSubmitting || draftSaveStatus.saving || touchedRows.size === 0}>
+                            {isSubmitting ? 'Submitting...' : 'Finalize & Confirm'}
+                        </button>
+                    </div>
+                </div>
             )}
-            <button 
-              onClick={handleOpenConfirmModal}
-              className="bg-indigo-600 text-white px-8 py-3 text-base font-semibold rounded-md shadow-sm hover:bg-indigo-700 disabled:bg-indigo-400 disabled:cursor-not-allowed transition-colors"
-              disabled={isSubmitting || loading}
-            >
-              {isSubmitting ? 'Submitting...' : 'Submit Count'}
-            </button>
           </div>
         </>
       )}

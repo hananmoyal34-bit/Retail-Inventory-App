@@ -15,7 +15,10 @@ import {
     QuestionMarkCircleIcon,
     ChevronDownIcon,
     WarehouseIcon,
-    DocumentTextIcon
+    DocumentTextIcon,
+    UserCircleIcon,
+    CreditCardIcon,
+    FolderIcon
 } from './icons';
 
 interface MobileNavMenuProps {
@@ -27,31 +30,41 @@ interface MobileNavMenuProps {
 const mainNavItems = [
     { id: Page.DASHBOARD, label: 'Dashboard', icon: <HomeIcon /> },
     { id: Page.ORDERS, label: 'Orders', icon: <TruckIcon /> },
-    { id: Page.COUNT, label: 'Count', icon: <TableCellsIcon /> },
     { id: Page.WAREHOUSE_INVENTORY, label: 'Warehouse Inventory', icon: <WarehouseIcon /> },
-    { id: Page.INVENTORY_LOG, label: 'Locations Inventory', icon: <ClipboardListIcon /> },
+    { id: Page.TRANSACTION_LOGS, label: 'Inventory Report', icon: <ClipboardListIcon /> },
+];
+
+const officeNavItems = [
+    { id: Page.VIEWER_CS_HUB, label: 'CS Hub', icon: <UserCircleIcon /> },
+    { id: Page.VIEWER_FINANCING, label: 'Financing', icon: <CreditCardIcon /> },
+    { id: Page.VIEWER_ACCOUNTS, label: 'Accounts', icon: <FolderIcon /> },
+    { id: Page.VIEWER_TASKS, label: 'Tasks', icon: <ClipboardListIcon /> },
+    { id: Page.VIEWER_DIRECTORY, label: 'Directory', icon: <UsersIcon /> },
 ];
 
 const manageNavItems = [
     { id: Page.PRODUCTS, label: 'Products', icon: <BoxIcon /> },
     { id: Page.LOCATIONS, label: 'Locations', icon: <LocationMarkerIcon /> },
     { id: Page.USERS, label: 'Users', icon: <UsersIcon /> },
-    { id: Page.ACCOUNTS, label: 'Accounts', icon: <DocumentTextIcon /> },
-    { id: Page.CUSTOMER_SERVICE, label: 'Customer Service', icon: <QuestionMarkCircleIcon /> },
+    { id: Page.COUNT, label: 'Count', icon: <TableCellsIcon /> },
+    { id: Page.COUNT_LOG, label: 'Count Log', icon: <TableCellsIcon /> },
 ];
 
 const MobileNavMenu: React.FC<MobileNavMenuProps> = ({ activePage, setActivePage, onLogout }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isManageOpen, setIsManageOpen] = useState(false);
+  const [isOfficeOpen, setIsOfficeOpen] = useState(false);
 
   const handleNavigation = (page: Page) => {
     setActivePage(page);
     setIsOpen(false);
-    // When a manage item is clicked, also close the manage sub-menu for next time
+    // When an item is clicked, also close the sub-menus for next time
     setIsManageOpen(false); 
+    setIsOfficeOpen(false);
   };
   
   const isManagePageActive = manageNavItems.some(item => item.id === activePage);
+  const isOfficePageActive = officeNavItems.some(item => item.id === activePage);
 
   return (
     // This component is only visible on screens smaller than md (768px)
@@ -113,6 +126,41 @@ const MobileNavMenu: React.FC<MobileNavMenuProps> = ({ activePage, setActivePage
                   </button>
                 </li>
               ))}
+              {/* Office Accordion */}
+              <li>
+                 <button
+                    onClick={() => setIsOfficeOpen(!isOfficeOpen)}
+                    className={`w-full flex items-center justify-between p-3 rounded-lg text-left text-base font-medium transition-colors ${
+                      isOfficePageActive
+                        ? 'bg-indigo-100 text-indigo-700'
+                        : 'text-gray-700 hover:bg-black/5'
+                    }`}
+                  >
+                    <div className="flex items-center">
+                        <DocumentTextIcon className="h-6 w-6 mr-4" />
+                        <span>Office</span>
+                    </div>
+                    <ChevronDownIcon className={`h-5 w-5 transition-transform ${isOfficeOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                  {isOfficeOpen && (
+                    <div className="pl-8 pt-2 space-y-2">
+                         {officeNavItems.map((item) => (
+                            <button
+                                key={item.id}
+                                onClick={() => handleNavigation(item.id)}
+                                className={`w-full flex items-center p-3 rounded-lg text-left text-base font-medium transition-colors ${
+                                activePage === item.id
+                                    ? 'bg-indigo-100 text-indigo-700'
+                                    : 'text-gray-700 hover:bg-black/5'
+                                }`}
+                            >
+                                {React.cloneElement(item.icon, { className: 'h-6 w-6 mr-4' })}
+                                <span>{item.label}</span>
+                            </button>
+                         ))}
+                    </div>
+                  )}
+              </li>
               {/* Manage Accordion */}
               <li>
                  <button
