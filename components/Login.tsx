@@ -3,7 +3,7 @@ import { User } from '../types';
 import { getUsers } from '../services/dataService';
 
 interface LoginProps {
-  role: 'Admin' | 'Manager' | 'Office' | 'Accounting';
+  role: 'Admin' | 'Manager' | 'Logistics' | 'Accounting';
   onLogin: (user: User) => void;
   onBack: () => void;
 }
@@ -29,7 +29,7 @@ const Login: React.FC<LoginProps> = ({ role, onLogin, onBack }) => {
       if (foundUser) {
         onLogin(foundUser);
       } else {
-        setError(`Invalid access code for the ${role === 'Office' ? 'Logistics' : role} role. Please try again or contact an administrator.`);
+        setError(`Invalid access code for the ${role} role. Please try again or contact an administrator.`);
       }
     } catch (err) {
       console.error("Login failed:", err);
@@ -45,7 +45,7 @@ const Login: React.FC<LoginProps> = ({ role, onLogin, onBack }) => {
         <button onClick={onBack} className="absolute top-4 left-4 text-sm text-indigo-600 hover:underline">
           &larr; Back to Portals
         </button>
-        <h2 className="text-2xl font-bold text-center text-gray-800 mt-8 mb-6">{role === 'Office' ? 'Logistics' : role} Login</h2>
+        <h2 className="text-2xl font-bold text-center text-gray-800 mt-8 mb-6">{role} Login</h2>
         <form onSubmit={handleLogin}>
           <div className="mb-4">
             <label htmlFor="accessCode" className="block text-sm font-medium text-gray-700">

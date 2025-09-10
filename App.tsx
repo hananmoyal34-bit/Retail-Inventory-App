@@ -55,7 +55,7 @@ const App: React.FC = () => {
       return <AdminPortal onLogout={handleLogout} />;
     case 'Manager':
       return <ManagerPortal user={user} onLogout={handleLogout} />;
-    case 'Office':
+    case 'Logistics':
       return <LogisticsPortal user={user} onLogout={handleLogout} />;
     default:
       // If user has an unknown role, log them out.

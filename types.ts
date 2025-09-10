@@ -45,7 +45,7 @@ export interface User {
   email: string;
   phone: string;
   accessCode: string;
-  role: 'Admin' | 'Manager' | 'Office' | string;
+  role: 'Admin' | 'Manager' | 'Logistics' | string;
   location: string;
 }
 

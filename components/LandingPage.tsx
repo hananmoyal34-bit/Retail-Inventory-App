@@ -29,7 +29,7 @@ const PortalCard: React.FC<{
 
 
 const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
-  const [loginRole, setLoginRole] = useState<'Admin' | 'Manager' | 'Office' | null>(null);
+  const [loginRole, setLoginRole] = useState<'Admin' | 'Manager' | 'Logistics' | null>(null);
 
   if (loginRole) {
     return (
@@ -71,7 +71,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                 title="Logistics Portal"
                 description="View operational data including orders, inventory, and counts."
                 icon={<ClipboardListIcon className="h-8 w-8" />}
-                onClick={() => setLoginRole('Office')}
+                onClick={() => setLoginRole('Logistics')}
                 iconBgColor="bg-orange-100"
                 iconTextColor="text-orange-600"
             />
