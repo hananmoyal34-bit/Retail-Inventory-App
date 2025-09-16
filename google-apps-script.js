@@ -23,7 +23,6 @@ const SHEET_NAMES = {
   products: 'Products',
   productsListAppsheet: 'PRODUCTS_LIST_APPSHEET',
   draftCounts: 'Draft Counts',
-  // FIX: Added 'Accounts' sheet name.
   accounts: 'Accounts'
 };
 
@@ -108,7 +107,6 @@ function doPost(e) {
       case 'getAppSheetProducts':
         response = handleGetAppSheetProducts();
         break;
-      // FIX: Added cases for account management actions.
       case 'addAccount':
         response = handleAddAccount(payload);
         break;
@@ -380,7 +378,7 @@ function handleSubmitWarehouseCount(payload) {
   // Batch write to Inventory Log sheet
   if (inventoryLogRows.length > 0) {
     const startRow = logSheet.getLastRow() + 1;
-    logSheet.getRange(startRow, 1, inventoryLogRows.length, logRows[0].length).setValues(logRows);
+    logSheet.getRange(startRow, 1, inventoryLogRows.length, inventoryLogRows[0].length).setValues(inventoryLogRows);
   }
   
   return { status: 'success', message: 'Warehouse count submitted successfully.' };
@@ -749,7 +747,6 @@ function handleUpdateAppSheetProduct(payload) {
   throw new Error("Product not found for update: " + payload.name);
 }
 
-// FIX: Added handlers for Account CRUD operations.
 function handleAddAccount(payload) {
   const sheet = getSheet(SHEET_NAMES.accounts);
   const newId = generateUniqueId();
