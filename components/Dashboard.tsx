@@ -1,3 +1,4 @@
+
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { Page, Product, InventoryLog, User, LocationOrder, CountLog, WarehouseCountLog, AppSheetProduct, Location } from '../types';
 import { getProducts, getInventoryLogs, getUsers, getLocationOrders, formatDateToYMD, getCountLogs, getWarehouseCountLogs, getAppSheetProducts, getLocations, getCurrentDateInTimezone, formatToLocaleString } from '../services/dataService';
@@ -88,13 +89,14 @@ const LowStockCard: React.FC<{
     const lowStockWarehouseItems = useMemo(() => {
         if (!warehouseStock || Object.keys(warehouseStock).length === 0) return [];
         
+        // FIX: Add explicit type to `p` parameter to resolve 'unknown' type error.
         return Object.values(warehouseStock)
             .flat()
-            .filter(p => {
+            .filter((p: { productName: string; totalStock: number }) => {
                 const threshold = productThresholdMap.get(p.productName) ?? 10;
                 return p.totalStock <= threshold;
             })
-            .map(p => ({ productName: p.productName, stock: p.totalStock }))
+            .map((p: { productName: string; totalStock: number }) => ({ productName: p.productName, stock: p.totalStock }))
             .sort((a, b) => a.stock - b.stock || a.productName.localeCompare(b.productName));
             
     }, [warehouseStock, productThresholdMap]);
@@ -480,7 +482,8 @@ const Dashboard: React.FC<DashboardProps> = ({ setActivePage }) => {
                 </div>
 
                 <div className="space-y-3">
-                    {Object.keys(groupedTransactionLogs).length > 0 ? Object.entries(groupedTransactionLogs).map(([productName, logs]) => (
+                    {/* FIX: Cast result of Object.entries to fix 'unknown' type error. */}
+                    {Object.keys(groupedTransactionLogs).length > 0 ? (Object.entries(groupedTransactionLogs) as [string, InventoryLog[]][]).map(([productName, logs]) => (
                         <details key={productName} open={expandedTransactionProducts.has(productName)} className="bg-white/80 shadow rounded-lg transition-all duration-300 group">
                             <summary className="px-4 py-3 text-lg font-semibold text-gray-800 cursor-pointer list-none flex justify-between items-center hover:bg-white rounded-t-lg" onClick={(e) => handleToggleTransactionProduct(e, productName)}>
                                 <span>{productName}</span>

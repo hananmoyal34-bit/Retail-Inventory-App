@@ -1,6 +1,8 @@
 
+
 import React from 'react';
-import type { CustomerRecord, Status, SortConfig } from '../../../types';
+// FIX: Update type import path
+import type { CustomerRecord, Status, SortConfig } from '../types';
 import { PencilIcon as EditIcon, TrashIcon as DeleteIcon, ViewIcon, SortIcon, ChevronRightIcon } from '../../icons';
 import Tooltip from '../../Tooltip';
 
@@ -85,7 +87,8 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
                     </tr>
                 </thead>
                 <tbody>
-                    {Object.entries(groupedRecords).map(([status, recordsInGroup]) => {
+                    {/* FIX: Cast result of Object.entries to fix 'unknown' type error. */}
+                    {(Object.entries(groupedRecords) as [string, CustomerRecord[]][]).map(([status, recordsInGroup]) => {
                         const isCollapsed = collapsedStatuses.has(status);
                         return (
                              <React.Fragment key={status}>

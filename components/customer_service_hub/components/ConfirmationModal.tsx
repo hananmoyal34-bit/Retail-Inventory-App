@@ -1,3 +1,4 @@
+
 import React from 'react';
 
 interface ConfirmationModalProps {
@@ -31,7 +32,7 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({ isOpen, onClose, 
                         className="text-white bg-red-600 hover:bg-red-700 focus:ring-4 focus:outline-none focus:ring-red-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center disabled:bg-red-400 disabled:cursor-not-allowed"
                     >
                         {/* FIX: Use confirmText prop and a more generic loading message */}
-                        {isConfirming ? 'Deleting...' : confirmText}
+                        {isConfirming ? 'Confirming...' : confirmText}
                     </button>
                 </div>
             </div>

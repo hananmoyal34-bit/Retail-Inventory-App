@@ -1,3 +1,4 @@
+
 import React from 'react';
 import type { FinancingRecord } from '../types';
 import Modal from './Modal';

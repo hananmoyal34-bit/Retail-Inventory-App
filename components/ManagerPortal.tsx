@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { User, Product, OrderItem, OrderPayload, Location, LocationOrder, AppSheetProduct } from '../types';
 import { getUsers, getProducts, getLocations, getLocationOrders, formatToLocaleString, getAppSheetProducts, formatDateToYMD } from '../services/dataService';
@@ -634,7 +635,8 @@ const ManagerPortal: React.FC<ManagerPortalProps> = ({ user, onLogout }) => {
                                         <p className="text-gray-500 text-center py-8">Your order is empty.</p>
                                     ) : (
                                         <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
-                                            {Object.entries(groupedOrderItems).map(([name, items]) => (
+                                            {/* FIX: Cast result of Object.entries to fix 'unknown' type error. */}
+                                            {(Object.entries(groupedOrderItems) as [string, OrderItem[]][]).map(([name, items]) => (
                                                 <div key={name} className="border-b pb-3 last:border-b-0">
                                                     <h4 className="font-semibold text-gray-800">{name}</h4>
                                                     <ul className="pl-2 mt-1 space-y-2">

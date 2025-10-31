@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Account } from '../types';
 import { formatCurrency, formatDateToMDY, getExpirationHighlightClass } from '../utils/formatting';
@@ -98,7 +99,7 @@ const AccountsView: React.FC<AccountsViewProps> = ({ accounts }) => {
         if (!activeTab || !accountsByTab[activeTab]) return {};
         const accountsInTab = accountsByTab[activeTab];
         
-        const groupedByCompany = accountsInTab.reduce((acc, account) => {
+        const groupedByCompany = (accountsInTab as Account[]).reduce((acc, account) => {
             const company = account.company || 'Unassigned';
             if (!acc[company]) acc[company] = [];
             acc[company].push(account);
@@ -109,16 +110,19 @@ const AccountsView: React.FC<AccountsViewProps> = ({ accounts }) => {
         let queryFilteredGroups = groupedByCompany;
         if (lowercasedQuery) {
             queryFilteredGroups = {};
-            Object.entries(groupedByCompany).forEach(([company, companyAccounts]) => {
+            // FIX: Cast result of Object.entries to fix 'unknown' type error.
+            (Object.entries(groupedByCompany) as [string, Account[]][]).forEach(([company, companyAccounts]) => {
                 if (company.toLowerCase().includes(lowercasedQuery) || 
-                    companyAccounts.some(acc => Object.values(acc).some(val => String(val).toLowerCase().includes(lowercasedQuery)))) {
+                    // FIX: Cast `companyAccounts` to `Account[]` to fix 'unknown' type error on `some`.
+                    (companyAccounts as Account[]).some(acc => Object.values(acc).some(val => String(val).toLowerCase().includes(lowercasedQuery)))) {
                     queryFilteredGroups[company] = companyAccounts;
                 }
             });
         }
 
         const sortedGroups: typeof queryFilteredGroups = {};
-        Object.entries(queryFilteredGroups).forEach(([company, companyAccounts]) => {
+        // FIX: Cast result of Object.entries to fix 'unknown' type error.
+        (Object.entries(queryFilteredGroups) as [string, Account[]][]).forEach(([company, companyAccounts]) => {
             sortedGroups[company] = [...companyAccounts].sort((a, b) => {
                 const aValue = a[sortConfig.key], bValue = b[sortConfig.key];
                 if (sortConfig.key === 'amountDue') {
@@ -159,7 +163,8 @@ const AccountsView: React.FC<AccountsViewProps> = ({ accounts }) => {
                 </div>
                 {Object.keys(groupedAndFilteredAccounts).length > 0 ? (
                     <div className="space-y-4">
-                        {Object.entries(groupedAndFilteredAccounts).sort(([a], [b]) => a.localeCompare(b)).map(([company, companyAccounts]) => (
+                        {/* FIX: Cast result of Object.entries to fix 'unknown' type error. */}
+                        {(Object.entries(groupedAndFilteredAccounts) as [string, Account[]][]).sort(([a], [b]) => a.localeCompare(b)).map(([company, companyAccounts]) => (
                             <details key={company} open={true} className="bg-white shadow-md rounded-lg overflow-hidden">
                                 <summary className="list-none flex justify-between items-center p-4 cursor-pointer hover:bg-gray-50">
                                     <h4 className="font-semibold text-md text-gray-700">{company} ({companyAccounts.length})</h4>
@@ -174,7 +179,8 @@ const AccountsView: React.FC<AccountsViewProps> = ({ accounts }) => {
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-gray-200">
-                                            {companyAccounts.map(account => (
+                                            {/* FIX: Cast result of Object.entries to fix 'unknown' type error. */}
+                                            {(companyAccounts as Account[]).map(account => (
                                                 <tr key={account.accountID} className="hover:bg-indigo-50 cursor-pointer" onClick={() => handleViewDetails(account)}>
                                                     <td className="px-4 py-3"><ViewIcon /></td>
                                                     {visibleHeaders.map(header => (
@@ -189,7 +195,8 @@ const AccountsView: React.FC<AccountsViewProps> = ({ accounts }) => {
                                 </div>
                                 {/* Mobile Cards */}
                                 <div className="border-t border-gray-200 md:hidden p-2 space-y-2">
-                                  {companyAccounts.map(account => (
+                                  {/* FIX: Cast result of Object.entries to fix 'unknown' type error. */}
+                                  {(companyAccounts as Account[]).map(account => (
                                     <div key={account.accountID} onClick={() => handleViewDetails(account)} className="bg-gray-50/50 rounded-lg p-3 border border-gray-200 space-y-2">
                                       <div className="flex justify-between items-start">
                                         <p className="font-semibold text-on-surface flex-1 pr-2">{account.locationName}</p>

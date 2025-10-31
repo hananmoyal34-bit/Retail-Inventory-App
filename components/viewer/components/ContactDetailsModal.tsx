@@ -1,3 +1,4 @@
+
 import React from 'react';
 import type { Contact } from '../types';
 import Modal from './Modal';

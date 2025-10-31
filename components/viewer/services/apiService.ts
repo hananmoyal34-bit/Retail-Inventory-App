@@ -1,3 +1,4 @@
+
 import { WEB_APP_URL } from '../constants';
 import type { CustomerRecord, Account, Task, Contact, FinancingRecord } from '../types';
 
@@ -60,10 +61,9 @@ export const getAccounts = async (): Promise<Account[]> => {
     const response = await fetch(url.toString());
     const result = await handleResponse<{headers: string[], rows: any[][]}>(response);
 
-    const accountKeys: (keyof Account)[] = ["accountID", "Location Name", "Account Type", "Contact Person", "Phone", "Email", "Address", "Status", "Notes", "File Upload", "Timestamp"].map(k => k.replace(/\s/g, '').replace(/^./, c => c.toLowerCase()) as keyof Account);
-     // This mapping is simplified. The provided script seems to have a different structure.
-    // The provided script for viewer has:
-    const keys: (keyof Account)[] = ['accountID', 'accountType', 'subCategory', 'company', 'locationName', 'locationAddress', 'expiration', 'amountDue', 'billingType', 'billingAmount', 'paymentMethod', 'licenseNumber', 'insuranceCarrier', 'insuranceBroker', 'notes', 'status', 'timestamp', 'fileUpload'];
+    // FIX: Corrected key mapping to match the provided script's structure.
+    const keys: (keyof Account)[] = ['accountID', 'timestamp', 'accountType', 'subCategory', 'company', 'locationName', 'locationAddress', 'expiration', 'amountDue', 'billingType', 'billingAmount', 'paymentMethod', 'licenseNumber', 'insuranceCarrier', 'insuranceBroker', 'notes', 'status', 'fileUpload'];
+
 
     const parsed = parseRows<Account>(result, keys);
     return parsed.map(acc => ({ ...acc, amountDue: parseFloat(String(acc.amountDue)) || 0, billingAmount: parseFloat(String(acc.billingAmount)) || 0 }));

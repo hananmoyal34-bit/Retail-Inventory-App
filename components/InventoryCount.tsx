@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { getProducts, getLocations, getInventoryLogs, getCurrentDateInTimezone, formatDateToYMD, getAppSheetProducts, formatToLocaleString, getCountLogs, getDraftCounts } from '../services/dataService';
 import { submitInventoryCount, submitWarehouseCount, saveDraftCount } from '../services/writeService';
@@ -218,7 +219,8 @@ const InventoryCount: React.FC = () => {
         setIsFinalized(finalizedLogExists);
 
         if (finalizedLogExists) {
-            const finalizedEntries = products.map(product => {
+            // FIX: Add explicit type to `product` parameter to resolve 'unknown' type error.
+            const finalizedEntries = products.map((product: Product) => {
                 const log = countLogs.find(l => l.location === selectedLocation && formatDateToYMD(l.date) === date && l.productName === product.productName);
                 return {
                     productID: product.productID, productName: product.productName,
@@ -233,7 +235,8 @@ const InventoryCount: React.FC = () => {
         } else {
             const draftsForDay = draftCounts.filter(d => d.location === selectedLocation && formatDateToYMD(d.date) === date);
             if (draftsForDay.length > 0) {
-                const draftEntries = products.map(product => {
+                // FIX: Add explicit type to `product` parameter to resolve 'unknown' type error.
+                const draftEntries = products.map((product: Product) => {
                     const draft = draftsForDay.find(d => d.productName === product.productName);
                     const calculatedValue = openingStock.get(product.productName) || 0;
                     return {
@@ -248,7 +251,8 @@ const InventoryCount: React.FC = () => {
                 const latestDraftTimestamp = draftsForDay.length > 0 ? draftsForDay[0].timestamp : null;
                 setDraftSaveStatus({ saving: false, lastSaved: latestDraftTimestamp });
             } else {
-                const initialEntries = products.map(product => {
+                // FIX: Add explicit type to `product` parameter to resolve 'unknown' type error.
+                const initialEntries = products.map((product: Product) => {
                     const calculatedValue = openingStock.get(product.productName) || 0;
                     return {
                         productID: product.productID, productName: product.productName,
@@ -267,6 +271,10 @@ const InventoryCount: React.FC = () => {
         setExpandedProducts(new Set());
     }
 }, [selectedLocation, date, openingStock, products, loading, activeTab, countLogs, draftCounts]);
+
+  const hasDataToSubmit = useMemo(() => {
+    return countEntries.some(e => e.stockIn > 0 || e.inStoreSales > 0 || e.warehouseShipping > 0 || e.physicalEndCount > 0 || e.isOpeningStockManual);
+  }, [countEntries]);
 
   const handleEntryChange = (productID: string, field: keyof CountEntry, value: number) => {
     setTouchedRows(prev => new Set(prev).add(productID));
@@ -305,9 +313,8 @@ const InventoryCount: React.FC = () => {
 
   const handleOpenConfirmModal = () => {
     setSubmissionStatus({ type: null, message: '' });
-    const entriesToSubmit = countEntries.filter(e => touchedRows.has(e.productID));
-    if (entriesToSubmit.length === 0) {
-      setSubmissionStatus({ type: 'error', message: 'No changes to submit. Please enter count data.' });
+    if (!hasDataToSubmit) {
+      setSubmissionStatus({ type: 'error', message: 'No count data entered. Please enter values before finalizing.' });
       return;
     }
     setIsConfirmModalOpen(true);
@@ -315,8 +322,7 @@ const InventoryCount: React.FC = () => {
   
   const handleConfirmSubmit = async () => {
     setIsSubmitting(true);
-    const entriesToSubmit = countEntries.filter(e => touchedRows.has(e.productID));
-
+    
     const submissionTimestamp = new Date();
     const [year, month, day] = date.split('-').map(Number);
     submissionTimestamp.setFullYear(year, month - 1, day);
@@ -324,7 +330,7 @@ const InventoryCount: React.FC = () => {
     const payload = {
         date: submissionTimestamp.toISOString(),
         location: selectedLocation,
-        entries: entriesToSubmit,
+        entries: countEntries,
     };
 
     const result = await submitInventoryCount(payload);
@@ -495,7 +501,8 @@ const InventoryCount: React.FC = () => {
     setIsSubmitting(true);
     setSubmissionStatus({ type: null, message: '' });
 
-    const entriesToSubmit: WarehouseCountEntry[] = Object.entries(warehouseSelections).flatMap(([productName, selection]) => {
+    // FIX: Add explicit type to `selection` parameter to resolve 'unknown' type error.
+    const entriesToSubmit: WarehouseCountEntry[] = (Object.entries(warehouseSelections) as [string, { quantities: { [color: string]: number }, notes: string }][]).flatMap(([productName, selection]) => {
         const productNotes = selection.notes;
         return Object.entries(selection.quantities)
             .filter(([, quantity]) => quantity > 0)
@@ -543,7 +550,8 @@ const InventoryCount: React.FC = () => {
   const warehouseSummaryItems = useMemo(() => {
       const items = [];
       let totalQty = 0;
-      for (const [productName, selection] of Object.entries(warehouseSelections)) {
+      // FIX: Cast result of Object.entries to fix 'unknown' type error.
+      for (const [productName, selection] of (Object.entries(warehouseSelections) as [string, { quantities: { [key: string]: number }, notes: string }][])) {
           const colorEntries = Object.entries(selection.quantities).filter(([, qty]) => qty > 0);
           if (colorEntries.length > 0 || selection.notes) {
               const productQty = colorEntries.reduce((sum, [, qty]) => sum + qty, 0);
@@ -679,7 +687,7 @@ const InventoryCount: React.FC = () => {
         <>
           <Modal isOpen={isConfirmModalOpen} onClose={() => setIsConfirmModalOpen(false)} title="Confirm Submission" size="2xl">
             <div className="space-y-4">
-                <p>Please review the following changes before submitting. Only items you've entered data for are shown.</p>
+                <p>Please review the following changes before submitting. This will finalize the count for the day.</p>
                 <div className="max-h-96 overflow-y-auto border rounded-md">
                     <table className="min-w-full divide-y divide-gray-200 text-sm">
                         <thead className="bg-gray-100 sticky top-0">
@@ -690,7 +698,7 @@ const InventoryCount: React.FC = () => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200">
-                            {countEntries.filter(e => touchedRows.has(e.productID)).map(entry => (
+                            {countEntries.filter(e => e.stockIn > 0 || e.inStoreSales > 0 || e.warehouseShipping > 0 || e.physicalEndCount > 0 || e.isOpeningStockManual).map(entry => (
                                 <tr key={entry.productID}>
                                     <td className="px-3 py-2 font-medium text-gray-800">{entry.productName}</td>
                                     <td className="px-3 py-2 text-right font-bold text-indigo-600">{entry.physicalEndCount}</td>
@@ -865,7 +873,7 @@ const InventoryCount: React.FC = () => {
                         <button onClick={handleSaveDraft} disabled={isSubmitting || draftSaveStatus.saving} className="bg-gray-200 text-gray-800 px-4 py-2 text-base font-semibold rounded-md shadow-sm hover:bg-gray-300 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors">
                             Save Draft
                         </button>
-                        <button onClick={handleOpenConfirmModal} className="bg-indigo-600 text-white px-4 py-2 text-base font-semibold rounded-md shadow-sm hover:bg-indigo-700 disabled:bg-indigo-400 disabled:cursor-not-allowed transition-colors" disabled={isSubmitting || draftSaveStatus.saving || touchedRows.size === 0}>
+                        <button onClick={handleOpenConfirmModal} className="bg-indigo-600 text-white px-4 py-2 text-base font-semibold rounded-md shadow-sm hover:bg-indigo-700 disabled:bg-indigo-400 disabled:cursor-not-allowed transition-colors" disabled={isSubmitting || draftSaveStatus.saving || !hasDataToSubmit}>
                             {isSubmitting ? 'Submitting...' : 'Finalize & Confirm'}
                         </button>
                     </div>
