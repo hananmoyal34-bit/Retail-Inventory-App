@@ -319,7 +319,8 @@ const CurrentStockView: React.FC = () => {
 
     {activeTab === 'warehouse' && (
         <div className="space-y-4 pt-4">
-            {Object.keys(warehouseStock).length > 0 ? Object.entries(warehouseStock).map(([category, products]) => (
+            {/* FIX: Add explicit type casting for Object.entries to resolve 'unknown' type errors in TypeScript. */}
+            {Object.keys(warehouseStock).length > 0 ? (Object.entries(warehouseStock) as [string, any[]][]).map(([category, products]) => (
             <details key={category} className="bg-white shadow-md rounded-xl overflow-hidden group transition-all duration-300">
                 <summary className="px-6 py-4 text-xl font-bold text-gray-800 cursor-pointer list-none flex justify-between items-center bg-gray-100 hover:bg-gray-200 transition-colors">
                     <span>{category}</span>
@@ -330,7 +331,7 @@ const CurrentStockView: React.FC = () => {
                     </span>
                 </summary>
                 <div className="p-2 space-y-2 bg-gray-50">
-                    {products.map(({ productName, totalStock, colors }) => (
+                    {products.map(({ productName, totalStock, colors }: any) => (
                         <details key={productName} className="bg-white shadow-lg rounded-xl overflow-hidden group/product transition-all duration-300">
                             <summary className="px-6 py-4 text-lg font-semibold text-gray-800 cursor-pointer list-none flex justify-between items-center hover:bg-gray-50 transition-colors">
                                 <div className="flex items-center gap-4">
@@ -352,7 +353,7 @@ const CurrentStockView: React.FC = () => {
                                         {totalStock}
                                     </span>
                                 </div>
-                                {colors.map((item) => {
+                                {colors.map((item: any) => {
                                     const stockLevelClasses = 
                                         item.quantity <= 0 
                                         ? 'bg-red-100 text-red-800'

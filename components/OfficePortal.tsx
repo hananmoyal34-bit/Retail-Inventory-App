@@ -1,12 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User } from '../types';
 import ProductList from './ProductList';
 import InventoryCount from './InventoryCount';
 import Orders from './Orders';
 import InventoryLog from './InventoryLog';
 import WarehouseInventory from './WarehouseInventory';
-import { BoxIcon, ClipboardListIcon, LoginIcon, TableCellsIcon, TruckIcon, WarehouseIcon } from './icons';
+import { BoxIcon, ClipboardListIcon, LoginIcon, TableCellsIcon, TruckIcon, WarehouseIcon, XIcon } from './icons';
 import OfficeMobileNavMenu from './OfficeMobileNavMenu';
+import { getAppSheetProducts } from '../services/dataService';
 
 interface LogisticsPortalProps {
   user: User;
@@ -17,6 +18,21 @@ type OfficePage = 'Orders' | 'Products' | 'Count' | 'Warehouse Inventory' | 'Loc
 
 const LogisticsPortal: React.FC<LogisticsPortalProps> = ({ user, onLogout }) => {
   const [activePage, setActivePage] = useState<OfficePage>('Orders');
+  const [hasUncategorized, setHasUncategorized] = useState(false);
+  const [showBanner, setShowBanner] = useState(true);
+
+  useEffect(() => {
+    const checkProducts = async () => {
+        try {
+            const products = await getAppSheetProducts();
+            const uncategorizedExists = products.some(p => !p.category);
+            setHasUncategorized(uncategorizedExists);
+        } catch (error) {
+            console.error("Failed to check for uncategorized products", error);
+        }
+    };
+    checkProducts();
+  }, []);
 
   const navItems: { id: OfficePage; label: string; icon: React.ReactNode }[] = [
     { id: 'Orders', label: 'Orders', icon: <TruckIcon className="h-5 w-5" /> },
@@ -76,6 +92,17 @@ const LogisticsPortal: React.FC<LogisticsPortalProps> = ({ user, onLogout }) => 
         </div>
       </header>
       <main className="container mx-auto p-4 sm:p-6 lg:p-8 pb-24 md:pb-8">
+        {hasUncategorized && showBanner && (
+            <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-800 p-4 mb-6 rounded-md shadow-md flex justify-between items-center" role="alert">
+                <div>
+                    <p className="font-bold">Urgent Action Required</p>
+                    <p>There are products in the system without an assigned category. Please go to the "Products" page to assign categories immediately to ensure proper inventory tracking.</p>
+                </div>
+                <button onClick={() => setShowBanner(false)} className="p-1 rounded-full hover:bg-yellow-200" aria-label="Dismiss message">
+                    <XIcon className="h-5 w-5" />
+                </button>
+            </div>
+        )}
         {renderPage()}
       </main>
       <OfficeMobileNavMenu activePage={activePage} setActivePage={setActivePage} onLogout={onLogout} />

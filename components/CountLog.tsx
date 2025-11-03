@@ -226,7 +226,8 @@ const CountLog: React.FC = () => {
                     <button onClick={() => setExpandedProducts(new Set(Object.keys(groupedCountLogs)))} className="px-3 py-1 text-xs font-medium text-indigo-700 bg-indigo-100 rounded-md">Expand All</button>
                     <button onClick={() => setExpandedProducts(new Set())} className="px-3 py-1 text-xs font-medium text-gray-700 bg-gray-200 rounded-md">Collapse All</button>
                 </div>
-                {Object.keys(groupedCountLogs).length > 0 ? Object.entries(groupedCountLogs).map(([productName, logs]) => (
+                {/* FIX: Add explicit type casting for Object.entries to resolve 'unknown' type errors in TypeScript. */}
+                {Object.keys(groupedCountLogs).length > 0 ? (Object.entries(groupedCountLogs) as [string, CountLogType[]][]).map(([productName, logs]) => (
                     <details key={productName} open={expandedProducts.has(productName)} className="bg-white shadow rounded-lg transition-all duration-300 group">
                         <summary className="px-4 py-3 text-lg font-semibold text-gray-800 cursor-pointer list-none flex justify-between items-center hover:bg-gray-50 rounded-t-lg" onClick={(e) => handleToggleProduct(e, productName)}>
                             <span>{productName}</span>

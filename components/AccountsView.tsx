@@ -241,7 +241,8 @@ const AccountsView: React.FC<AccountsViewProps> = ({ viewOnly = false }) => {
       if (!activeTab || !accountsByTab[activeTab]) return {};
       const accountsInTab = accountsByTab[activeTab];
       
-      const groupedBySubCategory = accountsInTab.reduce((acc, account) => {
+      // FIX: Add explicit type casting for accountsInTab to resolve 'unknown' type error on reduce.
+      const groupedBySubCategory = (accountsInTab as Account[]).reduce((acc, account) => {
           const subCategory = account.subCategory || 'General';
           if (!acc[subCategory]) acc[subCategory] = [];
           acc[subCategory].push(account);

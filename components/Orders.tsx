@@ -516,7 +516,8 @@ const Orders: React.FC = () => {
                             <ChevronDownIcon className="h-5 w-5 mr-2 text-gray-500 transform transition-transform duration-200 group-open/date:rotate-180" />
                           </summary>
                           <div className="space-y-3 mt-3">
-                            {Object.entries(itemsGroupedByName)
+                            {/* FIX: Add explicit type casting for Object.entries to resolve 'unknown' type errors in TypeScript. */}
+                            {(Object.entries(itemsGroupedByName) as [string, { totalQuantity: number; details: LocationOrder[] }][])
                               .sort(([nameA], [nameB]) => nameA.localeCompare(nameB))
                               .map(([itemName, group]) => {
                                 const itemKey = `${dateKey}-${itemName}`;

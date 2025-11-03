@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { ShippingData, Location, User } from '../types';
 import { getShippingData, formatToLocaleString } from '../services/dataService';
@@ -37,7 +38,6 @@ const Shipping: React.FC<ShippingProps> = ({ currentUser, allLocations }) => {
             try {
                 const data = await getShippingData();
                 // Filter data to only include shipments for the user's locations
-                // FIX: Add explicit type to `shipment` parameter to resolve 'unknown' type error.
                 const userSpecificData = data.filter((shipment: ShippingData) => userLocationFullNames.includes(shipment.storeName));
                 setShippingData(userSpecificData);
             } catch (error) {

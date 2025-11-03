@@ -593,13 +593,13 @@ function handleGetAppSheetProducts() {
     const products = [];
     for (var i = 1; i < data.length; i++) {
         var row = data[i];
-        if (row[nameIndex] && row[categoryIndex]) { // Ensure name and category exist
+        if (row[nameIndex]) { // Ensure name exists
             const colorsString = String(row[colorsIndex] || '');
             const threshold = parseInt(String(row[lowStockIndex] || '10'), 10);
             products.push({
                 name: row[nameIndex],
                 colors: colorsString ? colorsString.split(',').map(function(c) { return c.trim(); }) : [],
-                category: row[categoryIndex],
+                category: row[categoryIndex] || '',
                 subCategory: row[subCategoryIndex] || '',
                 lowStockThreshold: !isNaN(threshold) ? threshold : 10,
             });

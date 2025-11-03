@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { getProducts, getLocations, getInventoryLogs, getCurrentDateInTimezone, formatDateToYMD, getAppSheetProducts, formatToLocaleString, getCountLogs, getDraftCounts } from '../services/dataService';
 import { submitInventoryCount, submitWarehouseCount, saveDraftCount } from '../services/writeService';
@@ -219,7 +220,6 @@ const InventoryCount: React.FC = () => {
         setIsFinalized(finalizedLogExists);
 
         if (finalizedLogExists) {
-            // FIX: Add explicit type to `product` parameter to resolve 'unknown' type error.
             const finalizedEntries = products.map((product: Product) => {
                 const log = countLogs.find(l => l.location === selectedLocation && formatDateToYMD(l.date) === date && l.productName === product.productName);
                 return {
@@ -235,7 +235,6 @@ const InventoryCount: React.FC = () => {
         } else {
             const draftsForDay = draftCounts.filter(d => d.location === selectedLocation && formatDateToYMD(d.date) === date);
             if (draftsForDay.length > 0) {
-                // FIX: Add explicit type to `product` parameter to resolve 'unknown' type error.
                 const draftEntries = products.map((product: Product) => {
                     const draft = draftsForDay.find(d => d.productName === product.productName);
                     const calculatedValue = openingStock.get(product.productName) || 0;
@@ -251,7 +250,6 @@ const InventoryCount: React.FC = () => {
                 const latestDraftTimestamp = draftsForDay.length > 0 ? draftsForDay[0].timestamp : null;
                 setDraftSaveStatus({ saving: false, lastSaved: latestDraftTimestamp });
             } else {
-                // FIX: Add explicit type to `product` parameter to resolve 'unknown' type error.
                 const initialEntries = products.map((product: Product) => {
                     const calculatedValue = openingStock.get(product.productName) || 0;
                     return {
@@ -501,7 +499,6 @@ const InventoryCount: React.FC = () => {
     setIsSubmitting(true);
     setSubmissionStatus({ type: null, message: '' });
 
-    // FIX: Add explicit type to `selection` parameter to resolve 'unknown' type error.
     const entriesToSubmit: WarehouseCountEntry[] = (Object.entries(warehouseSelections) as [string, { quantities: { [color: string]: number }, notes: string }][]).flatMap(([productName, selection]) => {
         const productNotes = selection.notes;
         return Object.entries(selection.quantities)
@@ -550,7 +547,6 @@ const InventoryCount: React.FC = () => {
   const warehouseSummaryItems = useMemo(() => {
       const items = [];
       let totalQty = 0;
-      // FIX: Cast result of Object.entries to fix 'unknown' type error.
       for (const [productName, selection] of (Object.entries(warehouseSelections) as [string, { quantities: { [key: string]: number }, notes: string }][])) {
           const colorEntries = Object.entries(selection.quantities).filter(([, qty]) => qty > 0);
           if (colorEntries.length > 0 || selection.notes) {
