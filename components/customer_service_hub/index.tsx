@@ -1,7 +1,8 @@
 
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import type { CustomerRecord, FileForUpload, FormState, Status, SortConfig } from '../types';
+// FIX: Corrected import path from '../types' to './types' to correctly resolve type definitions.
+import type { CustomerRecord, FileForUpload, FormState, Status, SortConfig } from './types';
 import { getAllRecords, updateRecord, deleteRecord, createRecord } from '../services/apiService';
 import CustomerTable from './components/CustomerTable';
 import RecordModal from './components/RecordModal';

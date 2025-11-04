@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { LocationOrder, Location, User } from '../types';
 import { getLocationOrders, getLocations, getUsers, formatDateToYMD, formatToLocaleString } from '../services/dataService';
-import { updateOrderStatus } from '../services/writeService';
+import { updateOrderStatus, deleteOrder } from '../services/writeService';
 import LocationTag from './LocationTag';
 import DatePicker from './DatePicker';
 import Modal from './Modal';
-import { MinusIcon, PlusIcon, ChevronDownIcon, PencilIcon, CheckCircleIcon, XIcon, ArrowUpTrayIcon } from './icons';
+import ConfirmationModal from './customer_service_hub/components/ConfirmationModal';
+import { MinusIcon, PlusIcon, ChevronDownIcon, PencilIcon, CheckCircleIcon, XIcon, ArrowUpTrayIcon, TrashIcon } from './icons';
 
 const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
     const statusStyles: Record<string, string> = {
@@ -47,6 +48,10 @@ const Orders: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionError, setSubmissionError] = useState('');
   const [submittingQuickAction, setSubmittingQuickAction] = useState<{ orderID: string; type: string } | null>(null);
+
+  // State for delete modal
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [orderToDelete, setOrderToDelete] = useState<LocationOrder | null>(null);
 
   // State for bulk selection
   const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set());
@@ -196,6 +201,31 @@ const Orders: React.FC = () => {
   const handleCloseEditModal = () => {
     setIsEditModalOpen(false);
     setEditingOrder(null);
+  };
+  
+  const handleOpenDeleteModal = (order: LocationOrder) => {
+    setOrderToDelete(order);
+    setIsDeleteModalOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!orderToDelete) return;
+
+    setIsSubmitting(true);
+    setSubmissionError('');
+
+    const result = await deleteOrder(orderToDelete.orderID);
+
+    setIsDeleteModalOpen(false);
+    
+    if (result.success) {
+        setOrders(prevOrders => prevOrders.filter(o => o.orderID !== orderToDelete.orderID));
+    } else {
+        alert(`Failed to delete order: ${result.message}`);
+    }
+
+    setOrderToDelete(null);
+    setIsSubmitting(false);
   };
 
   const handleSaveChanges = async () => {
@@ -560,13 +590,16 @@ const Orders: React.FC = () => {
                                                                 <span className="text-gray-500 italic text-sm"> by {order.userName || order.createdBy}</span>
                                                                 </p>
                                                                 <div className="flex items-center gap-2 flex-shrink-0">
-                                                                <StatusBadge status={order.status} />
-                                                                <button onClick={() => handleQuickStatusUpdate(order, 'Pickup')} className="p-2 text-blue-500 hover:text-blue-700 rounded-full hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed" aria-label={`Mark order ${order.orderID} as picked up`} disabled={isAnythingSubmitting || order.status === 'Pickup' || selectedOrders.size > 0}>
-                                                                    {isSubmittingThisAction('Pickup') ? <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900"></div> : <CheckCircleIcon className="h-6 w-6" />}
-                                                                </button>
-                                                                <button onClick={() => handleOpenEditModal(order)} className="p-2 text-gray-500 hover:text-indigo-600 rounded-full hover:bg-gray-100 disabled:opacity-50" aria-label={`Edit order ${order.orderID}`} disabled={isAnythingSubmitting || selectedOrders.size > 0}>
-                                                                    <PencilIcon className="h-5 w-5" />
-                                                                </button>
+                                                                    <StatusBadge status={order.status} />
+                                                                    <button onClick={() => handleQuickStatusUpdate(order, 'Pickup')} className="p-2 text-blue-500 hover:text-blue-700 rounded-full hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed" aria-label={`Mark order ${order.orderID} as picked up`} disabled={isAnythingSubmitting || order.status === 'Pickup' || selectedOrders.size > 0}>
+                                                                        {isSubmittingThisAction('Pickup') ? <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900"></div> : <CheckCircleIcon className="h-6 w-6" />}
+                                                                    </button>
+                                                                    <button onClick={() => handleOpenEditModal(order)} className="p-2 text-gray-500 hover:text-indigo-600 rounded-full hover:bg-gray-100 disabled:opacity-50" aria-label={`Edit order ${order.orderID}`} disabled={isAnythingSubmitting || selectedOrders.size > 0}>
+                                                                        <PencilIcon className="h-5 w-5" />
+                                                                    </button>
+                                                                    <button onClick={() => handleOpenDeleteModal(order)} className="p-2 text-red-500 hover:text-red-700 rounded-full hover:bg-gray-100 disabled:opacity-50" aria-label={`Delete order ${order.orderID}`} disabled={isAnythingSubmitting || selectedOrders.size > 0}>
+                                                                        <TrashIcon className="h-5 w-5" />
+                                                                    </button>
                                                                 </div>
                                                             </div>
                                                             {order.officeNotes && (
@@ -667,6 +700,16 @@ const Orders: React.FC = () => {
           </div>
         )}
       </Modal>
+
+      <ConfirmationModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        onConfirm={handleConfirmDelete}
+        title="Delete Order"
+        message={`Are you sure you want to delete this order item (${orderToDelete?.item})? This action cannot be undone.`}
+        isConfirming={isSubmitting}
+        confirmText="Delete"
+      />
       
       {selectedOrders.size > 0 && (
         <div className="fixed bottom-0 md:bottom-4 inset-x-0 p-4 z-20 flex justify-center">

@@ -127,6 +127,10 @@ export const updateOrderStatus = async (payload: { orderID: string; status: stri
     return postToAppsScript(scriptPayload);
 };
 
+export const deleteOrder = async (orderID: string): Promise<{ success: boolean; message: string }> => {
+    return postToAppsScript({ action: 'deleteOrder', orderID });
+};
+
 export const addCategory = async (category: { category: string, subCategory: string }): Promise<{ success: boolean; message: string }> => {
   return postToAppsScript({ action: 'addCategory', ...category });
 };

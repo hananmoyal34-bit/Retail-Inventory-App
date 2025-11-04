@@ -199,11 +199,25 @@ export const getUsers = async (): Promise<User[]> => {
 export const getLocations = async (): Promise<Location[]> => {
   const data = await readSheet(SHEET_NAMES.locations);
   if (data.length <= 1) return [];
+
+  const headers = data[0].map(h => h.trim());
   const rows = data.slice(1);
+
+  const colMap = {
+    id: headers.indexOf('LocationID'),
+    name: headers.indexOf('Location Name'),
+    locationFullName: headers.indexOf('LocationFullName')
+  };
+
+  if (colMap.id === -1 || colMap.name === -1 || colMap.locationFullName === -1) {
+    console.error("One or more required columns are missing in the 'Locations' sheet: 'LocationID', 'Location Name', 'LocationFullName'");
+    return [];
+  }
+
   return rows.map(row => ({
-    id: safeParseString(row[0]),
-    name: safeParseString(row[1]),
-    locationFullName: safeParseString(row[2]),
+    id: safeParseString(row[colMap.id]),
+    name: safeParseString(row[colMap.name]),
+    locationFullName: safeParseString(row[colMap.locationFullName]),
   })).filter(l => l.id);
 };
 

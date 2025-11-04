@@ -71,6 +71,9 @@ function doPost(e) {
       case 'updateOrderStatus':
         response = handleUpdateOrderStatus(payload);
         break;
+      case 'deleteOrder':
+        response = handleDeleteOrder(payload);
+        break;
       case 'addCategory':
         response = handleAddCategory(payload);
         break;
@@ -456,6 +459,23 @@ function handleUpdateOrderStatus(payload) {
   throw new Error('Order ID ' + orderID + ' not found.');
 }
 
+function handleDeleteOrder(payload) {
+  const sheet = getSheet(SHEET_NAMES.locationOrders);
+  const orderID = payload.orderID;
+  if (!orderID) {
+    throw new Error("Order ID is required for deletion.");
+  }
+  
+  const rowInfo = findRowById(sheet, orderID, 'OrderID');
+
+  if (rowInfo) {
+    sheet.deleteRow(rowInfo.rowIndex);
+    return { status: 'success', message: 'Order deleted successfully.' };
+  }
+  
+  throw new Error("Order ID not found for deletion: " + orderID);
+}
+
 
 /**
  * Handles CRUD operations for locations.
@@ -463,8 +483,8 @@ function handleUpdateOrderStatus(payload) {
 function handleAddLocation(payload) {
   const sheet = getSheet(SHEET_NAMES.locations);
   const newId = generateUniqueId();
-  // Columns: LocationID, Location Name, LocationFullName
-  sheet.appendRow([newId, payload.name, payload.locationFullName || '']); 
+  // New Order: LocationID, LocationFullName, Location Name
+  sheet.appendRow([newId, payload.locationFullName || '', payload.name]); 
   return { status: 'success', message: 'Location added successfully.' };
 }
 
