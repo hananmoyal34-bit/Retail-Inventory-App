@@ -55,50 +55,57 @@ const WarehouseInventory: React.FC = () => {
     }, [appSheetProducts]);
 
     const warehouseStock = useMemo(() => {
-        if (inventoryLogs.length === 0 || appSheetProducts.length === 0) return {};
+        if (warehouseCountLogs.length === 0 || appSheetProducts.length === 0) return {};
 
         const productCategoryMap = new Map<string, string>();
         appSheetProducts.forEach(p => {
             productCategoryMap.set(p.name, p.category || 'Uncategorized');
         });
 
-        // Step 1: Calculate accurate total stock from inventoryLogs for the warehouse.
-        const totalStockMap = new Map<string, number>();
-        inventoryLogs.forEach(log => {
-            if (log.location === 'Warehouse') {
-                const currentStock = totalStockMap.get(log.productName) || 0;
-                totalStockMap.set(log.productName, currentStock + log.quantity);
+        // Find the timestamp of the latest submission
+        const latestTimestamp = Math.max(...warehouseCountLogs.map(log => new Date(log.timestamp).getTime()));
+        if (!isFinite(latestTimestamp)) return {};
+
+        // Define a "session" as logs submitted within a 5-minute window of the latest log
+        const SESSION_WINDOW = 5 * 60 * 1000;
+        const sessionStartTime = latestTimestamp - SESSION_WINDOW;
+
+        const recentLogs = warehouseCountLogs.filter(log => {
+            try {
+                const logTime = new Date(log.timestamp).getTime();
+                return logTime >= sessionStartTime && logTime <= latestTimestamp;
+            } catch(e) { return false; }
+        });
+
+        // Calculate stock based ONLY on this latest submission
+        const stockMap = new Map<string, { totalStock: number; colors: { color: string; quantity: number }[] }>();
+
+        recentLogs.forEach(log => {
+            if (log.quantity >= 0) { // Should always be positive from warehouse count
+                const entry = stockMap.get(log.productName) || { totalStock: 0, colors: [] };
+                entry.totalStock += log.quantity;
+                
+                const colorEntry = entry.colors.find(c => c.color === log.color);
+                if (colorEntry) {
+                    colorEntry.quantity += log.quantity;
+                } else {
+                    entry.colors.push({ color: log.color, quantity: log.quantity });
+                }
+                stockMap.set(log.productName, entry);
             }
         });
 
-        // Step 2: Calculate color breakdown from warehouseCountLogs. This gives us composition.
-        const colorStockMap = new Map<string, Map<string, number>>();
-        warehouseCountLogs.forEach(log => {
-            const productColors = colorStockMap.get(log.productName) || new Map<string, number>();
-            const currentColorQty = productColors.get(log.color) || 0;
-            productColors.set(log.color, currentColorQty + log.quantity);
-            colorStockMap.set(log.productName, productColors);
-        });
+        const productsWithCategory = Array.from(stockMap.entries())
+            .map(([productName, data]) => {
+                data.colors.sort((a, b) => a.color.localeCompare(b.color));
+                return { 
+                    productName, 
+                    category: productCategoryMap.get(productName) || 'Uncategorized',
+                    ...data 
+                };
+            });
 
-        // FIX: Replaced .forEach and .push with .map to ensure proper type inference for combinedProducts.
-        // This resolves downstream issues where array methods were called on properties of 'unknown' type.
-        // Step 3: Combine the accurate total with the color breakdown.
-        const combinedProducts = Array.from(totalStockMap.entries()).map(([productName, totalStock]) => {
-            const colorsMap = colorStockMap.get(productName) || new Map<string, number>();
-            const colorsArray = Array.from(colorsMap.entries())
-                .map(([color, quantity]) => ({ color, quantity }))
-                .sort((a, b) => a.color.localeCompare(b.color));
-            
-            return {
-                productName,
-                category: productCategoryMap.get(productName) || 'Uncategorized',
-                totalStock,
-                colors: colorsArray,
-            };
-        });
-
-        // Step 4: Group the final combined data by category.
-        const groupedByCategory = combinedProducts.reduce((acc, product) => {
+        const groupedByCategory = productsWithCategory.reduce((acc, product) => {
             const category = product.category;
             if (!acc[category]) {
                 acc[category] = [];
@@ -106,7 +113,7 @@ const WarehouseInventory: React.FC = () => {
             acc[category].push(product);
             acc[category].sort((a, b) => a.productName.localeCompare(b.productName));
             return acc;
-        }, {} as Record<string, typeof combinedProducts>);
+        }, {} as Record<string, typeof productsWithCategory>);
         
         return Object.keys(groupedByCategory).sort().reduce(
           (obj, key) => { 
@@ -115,7 +122,7 @@ const WarehouseInventory: React.FC = () => {
           }, 
           {} as typeof groupedByCategory
         );
-    }, [inventoryLogs, warehouseCountLogs, appSheetProducts]);
+    }, [warehouseCountLogs, appSheetProducts]);
     
     useEffect(() => {
         if (!loading && isInitialLoad && Object.keys(warehouseStock).length > 0) {
@@ -131,7 +138,8 @@ const WarehouseInventory: React.FC = () => {
         }
 
         const filtered: typeof warehouseStock = {};
-        Object.entries(warehouseStock).forEach(([category, products]) => {
+        // FIX: Add explicit type casting for Object.entries to resolve 'unknown' type errors in TypeScript.
+        (Object.entries(warehouseStock) as [string, any[]][]).forEach(([category, products]) => {
             const matchingProducts = products.filter(product => 
                 product.productName.toLowerCase().includes(lowercasedQuery)
             );
@@ -154,7 +162,8 @@ const WarehouseInventory: React.FC = () => {
         const lowStockList: { productName: string; category: string; totalStock: number }[] = [];
 
         Object.entries(warehouseStock).forEach(([category, products]) => {
-            products.forEach(product => {
+            // FIX: Add explicit type casting for products to resolve 'unknown' type errors in TypeScript.
+            (products as any[]).forEach(product => {
                 const threshold = productThresholdMap.get(product.productName) ?? 10;
                 if(product.totalStock <= threshold) {
                     lowStockList.push({
@@ -366,7 +375,7 @@ const WarehouseInventory: React.FC = () => {
                             <button onClick={() => setExpandedCategories(new Set(Object.keys(filteredWarehouseStock)))} className="px-3 py-1 text-xs font-medium text-indigo-700 bg-indigo-100 rounded-md">Expand All</button>
                             <button onClick={() => setExpandedCategories(new Set())} className="px-3 py-1 text-xs font-medium text-gray-700 bg-gray-200 rounded-md">Collapse All</button>
                         </div>
-                        {Object.keys(filteredWarehouseStock).length > 0 ? Object.entries(filteredWarehouseStock).map(([category, products]) => (
+                        {Object.keys(filteredWarehouseStock).length > 0 ? (Object.entries(filteredWarehouseStock) as [string, any[]][]).map(([category, products]) => (
                         <details key={category} className="bg-white shadow-md rounded-xl overflow-hidden group transition-all duration-300" open={expandedCategories.has(category)}>
                             <summary className="px-6 py-4 text-xl font-bold text-gray-800 cursor-pointer list-none flex justify-between items-center bg-gray-100 hover:bg-gray-200 transition-colors" onClick={(e) => handleToggleCategory(e, category)}>
                                 <span>{category}</span>
@@ -397,7 +406,7 @@ const WarehouseInventory: React.FC = () => {
                                                     {totalStock}
                                                 </span>
                                             </div>
-                                            {colors.map((item) => {
+                                            {colors.map((item: any) => {
                                                 const threshold = productThresholdMap.get(productName) ?? 10;
                                                 const stockLevelClasses = item.quantity <= 0 ? 'bg-red-100 text-red-800' : item.quantity <= threshold ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800';
                                                 return (
@@ -523,7 +532,7 @@ const WarehouseInventory: React.FC = () => {
                                 <button onClick={() => setExpandedProducts(new Set(Object.keys(groupedCountLogs)))} className="px-3 py-1 text-xs font-medium text-indigo-700 bg-indigo-100 rounded-md">Expand All</button>
                                 <button onClick={() => setExpandedProducts(new Set())} className="px-3 py-1 text-xs font-medium text-gray-700 bg-gray-200 rounded-md">Collapse All</button>
                             </div>
-                            {Object.keys(groupedCountLogs).length > 0 ? Object.entries(groupedCountLogs).map(([productName, logs]) => (
+                            {Object.keys(groupedCountLogs).length > 0 ? (Object.entries(groupedCountLogs) as [string, WarehouseCountLog[]][]).map(([productName, logs]) => (
                                 <details key={productName} open={expandedProducts.has(productName)} className="bg-white shadow rounded-lg transition-all duration-300 group">
                                     <summary className="px-4 py-3 text-lg font-semibold text-gray-800 cursor-pointer list-none flex justify-between items-center hover:bg-gray-50 rounded-t-lg" onClick={(e) => handleToggleProduct(e, productName)}>
                                         <span>{productName}</span>
@@ -635,7 +644,7 @@ const WarehouseInventory: React.FC = () => {
                                 <button onClick={() => setExpandedProducts(new Set(Object.keys(groupedTransactionLogs)))} className="px-3 py-1 text-xs font-medium text-indigo-700 bg-indigo-100 rounded-md">Expand All</button>
                                 <button onClick={() => setExpandedProducts(new Set())} className="px-3 py-1 text-xs font-medium text-gray-700 bg-gray-200 rounded-md">Collapse All</button>
                             </div>
-                            {Object.keys(groupedTransactionLogs).length > 0 ? Object.entries(groupedTransactionLogs).map(([productName, logs]) => (
+                            {Object.keys(groupedTransactionLogs).length > 0 ? (Object.entries(groupedTransactionLogs) as [string, InventoryLogType[]][]).map(([productName, logs]) => (
                                 <details key={productName} open={expandedProducts.has(productName)} className="bg-white shadow rounded-lg transition-all duration-300 group">
                                     <summary className="px-4 py-3 text-lg font-semibold text-gray-800 cursor-pointer list-none flex justify-between items-center hover:bg-gray-50 rounded-t-lg" onClick={(e) => handleToggleProduct(e, productName)}>
                                         <span>{productName}</span>

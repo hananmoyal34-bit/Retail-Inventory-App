@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { AppSheetProduct, ProductCategory } from '../types';
-import { getAppSheetProducts, getProductCategories } from '../services/dataService';
-import { updateAppSheetProduct } from '../services/writeService';
+import { AppSheetProduct, ProductCategory, Product } from '../types';
+import { getAppSheetProducts, getProductCategories, getProducts } from '../services/dataService';
+import { updateAppSheetProduct, updateDailyCountStatus } from '../services/writeService';
 import CategoryManager from './CategoryManager';
 import Modal from './Modal';
 import { PencilIcon, ChevronDownIcon, ViewGridIcon, TableCellsIcon, SearchIcon } from './icons';
@@ -11,6 +11,7 @@ type SortKey = keyof AppSheetProduct;
 
 const ProductList: React.FC = () => {
   const [appSheetProducts, setAppSheetProducts] = useState<AppSheetProduct[]>([]);
+  const [dailyCountProducts, setDailyCountProducts] = useState<Product[]>([]);
   const [productCategories, setProductCategories] = useState<ProductCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('products');
@@ -35,15 +36,20 @@ const ProductList: React.FC = () => {
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const [expandedSubCategories, setExpandedSubCategories] = useState<Set<string>>(new Set());
 
+  // State for daily count toggle
+  const [updatingDailyCount, setUpdatingDailyCount] = useState<Set<string>>(new Set());
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [appSheetProductsData, categoriesData] = await Promise.all([
+      const [appSheetProductsData, categoriesData, dailyCountData] = await Promise.all([
         getAppSheetProducts(),
         getProductCategories(),
+        getProducts(),
       ]);
       setAppSheetProducts(appSheetProductsData);
       setProductCategories(categoriesData);
+      setDailyCountProducts(dailyCountData);
     } catch (error) {
       console.error("Failed to fetch product data", error);
       setError("Failed to load product data.");
@@ -55,6 +61,8 @@ const ProductList: React.FC = () => {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  const dailyCountProductNames = useMemo(() => new Set(dailyCountProducts.map(p => p.productName)), [dailyCountProducts]);
 
   const categoryOptions = useMemo(() => {
     const map = new Map<string, Set<string>>();
@@ -191,6 +199,35 @@ const ProductList: React.FC = () => {
       setError(result.message);
     }
   };
+
+  const handleToggleDailyCount = async (productName: string, isOnDailyCount: boolean) => {
+    setUpdatingDailyCount(prev => new Set(prev).add(productName));
+    
+    const originalDailyCountProducts = [...dailyCountProducts];
+    if (isOnDailyCount) {
+        setDailyCountProducts(prev => [...prev, { productID: 'temp', productName, createDate: '', imageUrl: '' }]);
+    } else {
+        setDailyCountProducts(prev => prev.filter(p => p.productName !== productName));
+    }
+
+    const result = await updateDailyCountStatus(productName, isOnDailyCount);
+
+    if (!result.success) {
+        setDailyCountProducts(originalDailyCountProducts);
+        setError('Failed to update daily count status. Please try again.');
+    } else {
+        // Refetch on success to ensure data consistency
+        const freshDailyCountProducts = await getProducts();
+        setDailyCountProducts(freshDailyCountProducts);
+    }
+
+    setUpdatingDailyCount(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(productName);
+        return newSet;
+    });
+  };
+
 
   const renderTabButton = (tabName: string, label: string) => {
     const isActive = activeTab === tabName;
@@ -356,8 +393,25 @@ const ProductList: React.FC = () => {
                                                                 {product.colors.map(color => <span key={color} className="px-2 py-1 text-xs rounded-full bg-gray-200 text-gray-800">{color}</span>)}
                                                             </div>
                                                         </div>
-                                                        <div className="text-sm pt-2 border-t">
-                                                            <span className="font-medium text-gray-500">Low Stock At:</span> {product.lowStockThreshold}
+                                                        <div className="flex justify-between items-center pt-2 border-t">
+                                                            <div className="text-sm">
+                                                                <span className="font-medium text-gray-500">Low Stock At:</span> {product.lowStockThreshold}
+                                                            </div>
+                                                            <label htmlFor={`daily-count-grouped-${product.name}`} className="flex items-center space-x-2 cursor-pointer">
+                                                                <span className="text-sm font-medium text-gray-600">On Daily Count</span>
+                                                                <div className="relative">
+                                                                    <input
+                                                                        id={`daily-count-grouped-${product.name}`}
+                                                                        type="checkbox"
+                                                                        className="sr-only"
+                                                                        checked={dailyCountProductNames.has(product.name)}
+                                                                        onChange={() => handleToggleDailyCount(product.name, !dailyCountProductNames.has(product.name))}
+                                                                        disabled={updatingDailyCount.has(product.name)}
+                                                                    />
+                                                                    <div className={`block w-10 h-6 rounded-full transition-colors ${dailyCountProductNames.has(product.name) ? 'bg-indigo-600' : 'bg-gray-300'}`}></div>
+                                                                    <div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${dailyCountProductNames.has(product.name) ? 'translate-x-4' : ''}`}></div>
+                                                                </div>
+                                                            </label>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -387,6 +441,7 @@ const ProductList: React.FC = () => {
                                     <SortableHeader sortKey="category" label="Category" />
                                     <SortableHeader sortKey="subCategory" label="Sub-Category" />
                                     <SortableHeader sortKey="lowStockThreshold" label="Low Stock At" />
+                                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">On Daily Count</th>
                                     <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                                 </tr>
                             </thead>
@@ -402,13 +457,29 @@ const ProductList: React.FC = () => {
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{product.category}</td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{product.subCategory}</td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{product.lowStockThreshold}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <label htmlFor={`daily-count-table-${product.name}`} className="flex items-center cursor-pointer">
+                                                <div className="relative">
+                                                    <input
+                                                        id={`daily-count-table-${product.name}`}
+                                                        type="checkbox"
+                                                        className="sr-only"
+                                                        checked={dailyCountProductNames.has(product.name)}
+                                                        onChange={() => handleToggleDailyCount(product.name, !dailyCountProductNames.has(product.name))}
+                                                        disabled={updatingDailyCount.has(product.name)}
+                                                    />
+                                                    <div className={`block w-10 h-6 rounded-full transition-colors ${dailyCountProductNames.has(product.name) ? 'bg-indigo-600' : 'bg-gray-300'}`}></div>
+                                                    <div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${dailyCountProductNames.has(product.name) ? 'translate-x-4' : ''}`}></div>
+                                                </div>
+                                            </label>
+                                        </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-1">
                                             <button onClick={() => openModalForEdit(product)} className="p-2 text-indigo-600 hover:bg-indigo-100 rounded-full"><PencilIcon className="h-5 w-5" /></button>
                                         </td>
                                     </tr>
                                 )) : (
                                   <tr>
-                                    <td colSpan={5} className="px-6 py-10 text-center text-gray-500">
+                                    <td colSpan={6} className="px-6 py-10 text-center text-gray-500">
                                       {searchQuery ? `No products found for "${searchQuery}".` : 'No products found.'}
                                     </td>
                                   </tr>
@@ -436,6 +507,23 @@ const ProductList: React.FC = () => {
                                         {product.colors.map(color => <span key={color} className="px-2 py-1 text-xs rounded-full bg-gray-200 text-gray-800">{color}</span>)}
                                     </div>
                                 </div>
+                            </div>
+                            <div className="flex justify-end items-center pt-3 border-t">
+                                <label htmlFor={`daily-count-mobile-${product.name}`} className="flex items-center space-x-2 cursor-pointer">
+                                    <span className="text-sm font-medium text-gray-600">On Daily Count</span>
+                                    <div className="relative">
+                                        <input
+                                            id={`daily-count-mobile-${product.name}`}
+                                            type="checkbox"
+                                            className="sr-only"
+                                            checked={dailyCountProductNames.has(product.name)}
+                                            onChange={() => handleToggleDailyCount(product.name, !dailyCountProductNames.has(product.name))}
+                                            disabled={updatingDailyCount.has(product.name)}
+                                        />
+                                        <div className={`block w-10 h-6 rounded-full transition-colors ${dailyCountProductNames.has(product.name) ? 'bg-indigo-600' : 'bg-gray-300'}`}></div>
+                                        <div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${dailyCountProductNames.has(product.name) ? 'translate-x-4' : ''}`}></div>
+                                    </div>
+                                </label>
                             </div>
                         </div>
                     )) : (

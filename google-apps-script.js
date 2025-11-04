@@ -95,6 +95,9 @@ function doPost(e) {
       case 'updateProduct':
         response = handleUpdateProduct(payload);
         break;
+      case 'updateDailyCountStatus':
+        response = handleUpdateDailyCountStatus(payload);
+        break;
       case 'addAppSheetProduct':
         response = handleAddAppSheetProduct(payload);
         break;
@@ -296,10 +299,7 @@ function handleSubmitInventoryCount(payload) {
     ]);
     
     if (entry.stockIn > 0) {
-      // Log the "Stock In" for the retail location
       logRows.push([generateUniqueId(), date, location, entry.productName, 'Stock In', entry.stockIn]);
-      // Log a corresponding deduction from the Warehouse with a negative quantity
-      logRows.push([generateUniqueId(), date, "Warehouse", entry.productName, 'Warehouse-Out-Sys', -entry.stockIn]);
     }
     if (entry.inStoreSales > 0) logRows.push([generateUniqueId(), date, location, entry.productName, 'In-Store Sale', -entry.inStoreSales]);
     if (entry.warehouseShipping > 0) logRows.push([generateUniqueId(), date, location, entry.productName, 'Warehouse Shipping', entry.warehouseShipping]);
@@ -331,20 +331,43 @@ function handleSubmitInventoryCount(payload) {
 
 /**
  * Handles submission of warehouse counts using batch writes for performance.
+ * Each submission overwrites previous counts for the same products.
  */
 function handleSubmitWarehouseCount(payload) {
   const warehouseSheet = getSheet(SHEET_NAMES.warehouseCount);
-  const logSheet = getSheet(SHEET_NAMES.inventoryLog);
-  const date = new Date(payload.date);
   const serverTimestamp = new Date();
 
-  const warehouseCountRows = [];
-  const inventoryLogRows = [];
-
+  // Create a map of product-color combinations in the current submission
+  const submissionMap = new Map();
   payload.entries.forEach(function(entry) {
-    // Row for 'Warehouse Count' sheet
-    // Sheet columns: [CountID, Product, Color, Quantity, Notes, Timestamp, User]
-    const warehouseRow = [
+    const key = `${entry.productName}|${entry.color}`;
+    submissionMap.set(key, entry);
+  });
+  
+  const data = warehouseSheet.getDataRange().getValues();
+  const headers = data.shift(); // Remove headers
+  const productCol = headers.indexOf('Product');
+  const colorCol = headers.indexOf('Color');
+
+  const rowsToDelete = [];
+  
+  // Find existing rows for products in the new submission and mark them for deletion
+  data.forEach(function(row, index) {
+    const key = `${row[productCol]}|${row[colorCol]}`;
+    if(submissionMap.has(key)) {
+      rowsToDelete.push(index + 2); // +2 because of 1-based index and header row
+    }
+  });
+
+  // Delete rows in reverse order to avoid index shifting issues
+  for(var i = rowsToDelete.length - 1; i >= 0; i--) {
+    warehouseSheet.deleteRow(rowsToDelete[i]);
+  }
+
+  // Prepare new rows to be added
+  const newRows = [];
+  payload.entries.forEach(function(entry) {
+    newRows.push([
       generateUniqueId(),
       entry.productName,
       entry.color,
@@ -352,36 +375,16 @@ function handleSubmitWarehouseCount(payload) {
       entry.notes,
       serverTimestamp,
       payload.userName || ''
-    ];
-    warehouseCountRows.push(warehouseRow);
-    
-    // Row for 'Inventory Log' sheet
-    if (entry.quantity > 0) {
-       const logRow = [
-         generateUniqueId(),
-         date,
-         "Warehouse",
-         entry.productName,
-         "Stock In",
-         entry.quantity
-       ];
-       inventoryLogRows.push(logRow);
-    }
+    ]);
   });
-  
-  // Batch write to Warehouse Count sheet
-  if (warehouseCountRows.length > 0) {
-    const startRow = warehouseSheet.getLastRow() + 1;
-    warehouseSheet.getRange(startRow, 1, warehouseCountRows.length, warehouseCountRows[0].length).setValues(warehouseCountRows);
-  }
 
-  // Batch write to Inventory Log sheet
-  if (inventoryLogRows.length > 0) {
-    const startRow = logSheet.getLastRow() + 1;
-    logSheet.getRange(startRow, 1, inventoryLogRows.length, inventoryLogRows[0].length).setValues(inventoryLogRows);
+  // Batch write new rows
+  if (newRows.length > 0) {
+    const startRow = warehouseSheet.getLastRow() + 1;
+    warehouseSheet.getRange(startRow, 1, newRows.length, newRows[0].length).setValues(newRows);
   }
   
-  return { status: 'success', message: 'Warehouse count submitted successfully.' };
+  return { status: 'success', message: 'Warehouse count submitted and overwritten successfully.' };
 }
 
 
@@ -702,6 +705,26 @@ function handleUpdateProduct(payload) {
     return { status: 'success', message: 'Product updated successfully.' };
   }
   throw new Error("Product ID not found for update: " + payload.productID);
+}
+
+function handleUpdateDailyCountStatus(payload) {
+  const sheet = getSheet(SHEET_NAMES.products);
+  const { productName, isOnDailyCount } = payload;
+  const rowInfo = findRowById(sheet, productName, 'ProductName');
+
+  if (isOnDailyCount) {
+    if (rowInfo) {
+      return { status: 'success', message: 'Product is already on the daily count list.' };
+    }
+    sheet.appendRow([generateUniqueId(), productName, '', new Date()]);
+    return { status: 'success', message: `Added "${productName}" to the daily count.` };
+  } else {
+    if (!rowInfo) {
+      return { status: 'success', message: 'Product was not on the daily count list.' };
+    }
+    sheet.deleteRow(rowInfo.rowIndex);
+    return { status: 'success', message: `Removed "${productName}" from the daily count.` };
+  }
 }
 
 /**

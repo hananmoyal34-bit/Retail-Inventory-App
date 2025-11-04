@@ -187,6 +187,11 @@ export const updateProduct = async (product: Product): Promise<{ success: boolea
   return postToAppsScript({ action: 'updateProduct', ...product });
 };
 
+export const updateDailyCountStatus = async (productName: string, isOnDailyCount: boolean): Promise<{ success: boolean; message: string }> => {
+    return postToAppsScript({ action: 'updateDailyCountStatus', productName, isOnDailyCount });
+};
+
+
 // --- AppSheet Product Management Functions ---
 
 export const addAppSheetProduct = async (product: AppSheetProduct): Promise<{ success: boolean; message: string }> => {

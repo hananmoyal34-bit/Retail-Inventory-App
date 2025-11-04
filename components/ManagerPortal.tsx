@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { User, Product, OrderItem, OrderPayload, Location, LocationOrder, AppSheetProduct } from '../types';
 import { getUsers, getProducts, getLocations, getLocationOrders, formatToLocaleString, getAppSheetProducts, formatDateToYMD } from '../services/dataService';
@@ -8,6 +6,7 @@ import { PlusIcon, SearchIcon, TrashIcon, MinusIcon, ChevronDownIcon, CheckCircl
 import Shipping from './Shipping';
 import LocationTag from './LocationTag';
 import AccessibleNumberInput from './AccessibleNumberInput';
+import Modal from './Modal';
 
 interface ManagerPortalProps {
     user: User;
@@ -435,7 +434,7 @@ const ManagerPortal: React.FC<ManagerPortalProps> = ({ user, onLogout }) => {
                                             <ChevronDownIcon className="h-5 w-5 text-gray-500 transform transition-transform duration-200 group-open:rotate-180" />
                                         </summary>
                                         <div className="mt-4 pt-4 border-t">
-                                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                            <div className="grid grid-cols-1 gap-6">
                                                 <div className="space-y-3">
                                                     <div className="relative">
                                                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -468,7 +467,7 @@ const ManagerPortal: React.FC<ManagerPortalProps> = ({ user, onLogout }) => {
                                                                                     <button
                                                                                         key={product.name}
                                                                                         onClick={() => handleSelectProductForOrder(product)}
-                                                                                        className={`w-full text-left p-2 rounded-md transition-colors text-sm ${selectedAppSheetProduct?.name === product.name ? 'bg-indigo-600 text-white font-semibold shadow' : 'text-gray-600 hover:bg-indigo-100 hover:text-indigo-800'}`}
+                                                                                        className={'w-full text-left p-2 rounded-md transition-colors text-sm text-gray-600 hover:bg-indigo-100 hover:text-indigo-800'}
                                                                                     >
                                                                                         {product.name}
                                                                                     </button>
@@ -480,113 +479,6 @@ const ManagerPortal: React.FC<ManagerPortalProps> = ({ user, onLogout }) => {
                                                             </details>
                                                         )) : <p className="text-center text-gray-500 p-4">No products found.</p>}
                                                     </div>
-                                                </div>
-                                                <div>
-                                                    {selectedAppSheetProduct ? (
-                                                        <div className="space-y-4 p-4 border-2 border-indigo-500 rounded-lg bg-white h-full flex flex-col shadow-lg">
-                                                            <h5 className="font-semibold text-lg text-indigo-800">{selectedAppSheetProduct.name}</h5>
-                                                            
-                                                            {selectedAppSheetProduct.colors.length > 1 ? (
-                                                                <>
-                                                                    <div>
-                                                                        <label className="text-sm font-medium text-gray-700">1. Select a Color</label>
-                                                                        <div className="flex flex-wrap gap-2 mt-1">
-                                                                            {selectedAppSheetProduct.colors.map(color => (
-                                                                                <button key={color} onClick={() => handleSetActiveColor(color)}
-                                                                                    className={`px-3 py-1.5 text-sm font-medium rounded-full border transition-colors ${activeColor === color ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'} ${stagedItemsForProduct.some(item => item.color === color) ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                                                                    disabled={stagedItemsForProduct.some(item => item.color === color)}>
-                                                                                    {color}
-                                                                                </button>
-                                                                            ))}
-                                                                        </div>
-                                                                    </div>
-
-                                                                    {activeColor && (
-                                                                        <div className="p-3 bg-indigo-50 rounded-md">
-                                                                            <p className="text-sm font-medium text-gray-700 mb-2">2. Set Quantity for <span className="font-bold">{activeColor}</span></p>
-                                                                            <div className="flex items-center gap-4">
-                                                                                <div className="flex items-center gap-2">
-                                                                                    <span className="px-2.5 py-1.5 text-xs font-semibold text-indigo-800 bg-indigo-100 rounded-full">QTY</span>
-                                                                                    <AccessibleNumberInput
-                                                                                        ariaLabel={`Quantity for ${activeColor}`}
-                                                                                        value={activeColorQuantity}
-                                                                                        onChange={setActiveColorQuantity}
-                                                                                    />
-                                                                                </div>
-                                                                                <button onClick={handleStageItem} className="bg-green-600 text-white px-3 py-2 rounded-md hover:bg-green-700 text-sm flex items-center">
-                                                                                    <PlusIcon className="h-4 w-4 mr-1" /> Add
-                                                                                </button>
-                                                                            </div>
-                                                                        </div>
-                                                                    )}
-                                                                    
-                                                                    {stagedItemsForProduct.length > 0 && (
-                                                                        <div className="space-y-2 border-t pt-3">
-                                                                            <h6 className="text-sm font-semibold text-gray-600">Items to Add:</h6>
-                                                                            <ul className="divide-y max-h-32 overflow-y-auto pr-2">
-                                                                                {stagedItemsForProduct.map(item => (
-                                                                                    <li key={item.id} className="py-2 flex justify-between items-center">
-                                                                                        <p><span className="font-medium">{item.color}</span> - Qty: {item.quantity}</p>
-                                                                                        <button onClick={() => handleRemoveStagedItem(item.id)} className="text-red-500 hover:text-red-700"><TrashIcon className="h-4 w-4" /></button>
-                                                                                    </li>
-                                                                                ))}
-                                                                            </ul>
-                                                                        </div>
-                                                                    )}
-
-                                                                    <div>
-                                                                        {showProductNotes ? (
-                                                                            <>
-                                                                                <label className="text-sm font-medium text-gray-700">Notes (optional, for all items)</label>
-                                                                                <textarea value={orderProductNotes} onChange={e => setOrderProductNotes(e.target.value)} className="mt-1 block w-full p-2 border border-gray-300 rounded-md" rows={2}></textarea>
-                                                                            </>
-                                                                        ) : (
-                                                                            <button type="button" onClick={() => setShowProductNotes(true)} className="text-sm text-indigo-600 hover:underline mt-2">Add Note</button>
-                                                                        )}
-                                                                    </div>
-                                                                    
-                                                                    <button onClick={handleAddStagedItemsToOrder} disabled={stagedItemsForProduct.length === 0}
-                                                                        className="mt-auto bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 flex items-center w-full justify-center disabled:bg-indigo-400">
-                                                                        <PlusIcon className="h-5 w-5 mr-2" /> Add {stagedItemsForProduct.length} Item(s) to Order
-                                                                    </button>
-                                                                </>
-                                                            ) : (
-                                                                <>
-                                                                    {selectedAppSheetProduct.colors.length === 1 && (
-                                                                        <div className="mb-4">
-                                                                            <label className="text-sm font-medium text-gray-700">Color</label>
-                                                                            <p className="font-semibold text-gray-800 p-2 bg-gray-100 rounded-md mt-1">{orderProductColor}</p>
-                                                                        </div>
-                                                                    )}
-                                                                    <div className="flex items-center gap-2">
-                                                                        <span className="px-2.5 py-1.5 text-xs font-semibold text-indigo-800 bg-indigo-100 rounded-full">QTY</span>
-                                                                        <AccessibleNumberInput
-                                                                            ariaLabel="Product Quantity"
-                                                                            value={orderProductQuantity}
-                                                                            onChange={setOrderProductQuantity}
-                                                                        />
-                                                                    </div>
-                                                                    <div>
-                                                                        {showProductNotes ? (
-                                                                            <>
-                                                                                <label className="text-sm font-medium text-gray-700">Notes (optional)</label>
-                                                                                <textarea value={orderProductNotes} onChange={e => setOrderProductNotes(e.target.value)} className="mt-1 block w-full p-2 border border-gray-300 rounded-md" rows={2}></textarea>
-                                                                            </>
-                                                                        ) : (
-                                                                            <button type="button" onClick={() => setShowProductNotes(true)} className="text-sm text-indigo-600 hover:underline mt-2">Add Note</button>
-                                                                        )}
-                                                                    </div>
-                                                                    <button onClick={handleAddSingleItemToOrder} className="mt-auto bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 flex items-center w-full justify-center">
-                                                                        <PlusIcon className="h-5 w-5 mr-2" /> Add to Order
-                                                                    </button>
-                                                                </>
-                                                            )}
-                                                        </div>
-                                                    ) : (
-                                                        <div className="flex items-center justify-center h-full bg-gray-100 rounded-md p-4 text-center text-gray-500">
-                                                            <p>Select a product from the list to add it to your order.</p>
-                                                        </div>
-                                                    )}
                                                 </div>
                                             </div>
                                         </div>
@@ -635,7 +527,7 @@ const ManagerPortal: React.FC<ManagerPortalProps> = ({ user, onLogout }) => {
                                         <p className="text-gray-500 text-center py-8">Your order is empty.</p>
                                     ) : (
                                         <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
-                                            {/* FIX: Cast result of Object.entries to fix 'unknown' type error. */}
+                                            
                                             {(Object.entries(groupedOrderItems) as [string, OrderItem[]][]).map(([name, items]) => (
                                                 <div key={name} className="border-b pb-3 last:border-b-0">
                                                     <h4 className="font-semibold text-gray-800">{name}</h4>
@@ -660,7 +552,7 @@ const ManagerPortal: React.FC<ManagerPortalProps> = ({ user, onLogout }) => {
                                         </div>
                                     )}
                                     <div className="mt-6 border-t pt-4">
-                                    {/* FIX: Replaced redundant success check with an explicit error check to ensure error messages are shown correctly. */}
+                                    
                                     {submissionStatus.type === 'error' && submissionStatus.message && (
                                         <p className="text-sm font-medium mb-4 text-red-600">
                                             {submissionStatus.message}
@@ -755,6 +647,112 @@ const ManagerPortal: React.FC<ManagerPortalProps> = ({ user, onLogout }) => {
                         </button>
                     </div>
                 </div>
+            )}
+             {selectedAppSheetProduct && (
+                <Modal
+                    isOpen={!!selectedAppSheetProduct}
+                    onClose={() => setSelectedAppSheetProduct(null)}
+                    title={`Add to Order: ${selectedAppSheetProduct.name}`}
+                    size="2xl"
+                >
+                    <div className="space-y-4">
+                        {selectedAppSheetProduct.colors.length > 1 ? (
+                            <>
+                                <div>
+                                    <label className="text-sm font-medium text-gray-700">1. Select a Color</label>
+                                    <div className="flex flex-wrap gap-2 mt-1">
+                                        {selectedAppSheetProduct.colors.map(color => (
+                                            <button key={color} onClick={() => handleSetActiveColor(color)}
+                                                className={`px-3 py-1.5 text-sm font-medium rounded-full border transition-colors ${activeColor === color ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'} ${stagedItemsForProduct.some(item => item.color === color) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                                disabled={stagedItemsForProduct.some(item => item.color === color)}>
+                                                {color}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {activeColor && (
+                                    <div className="p-3 bg-indigo-50 rounded-md">
+                                        <p className="text-sm font-medium text-gray-700 mb-2">2. Set Quantity for <span className="font-bold">{activeColor}</span></p>
+                                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                                            <div className="flex items-center gap-2">
+                                                <span className="px-2.5 py-1.5 text-xs font-semibold text-indigo-800 bg-indigo-100 rounded-full">QTY</span>
+                                                <AccessibleNumberInput
+                                                    ariaLabel={`Quantity for ${activeColor}`}
+                                                    value={activeColorQuantity}
+                                                    onChange={setActiveColorQuantity}
+                                                />
+                                            </div>
+                                            <button onClick={handleStageItem} className="bg-green-600 text-white px-3 py-2 rounded-md hover:bg-green-700 text-sm flex items-center justify-center grow sm:grow-0">
+                                                <PlusIcon className="h-4 w-4 mr-1" /> Add
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                                
+                                {stagedItemsForProduct.length > 0 && (
+                                    <div className="space-y-2 border-t pt-3">
+                                        <h6 className="text-sm font-semibold text-gray-600">Items to Add:</h6>
+                                        <ul className="divide-y max-h-32 overflow-y-auto pr-2">
+                                            {stagedItemsForProduct.map(item => (
+                                                <li key={item.id} className="py-2 flex justify-between items-center">
+                                                    <p><span className="font-medium">{item.color}</span> - Qty: {item.quantity}</p>
+                                                    <button onClick={() => handleRemoveStagedItem(item.id)} className="text-red-500 hover:text-red-700"><TrashIcon className="h-4 w-4" /></button>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
+
+                                <div>
+                                    {showProductNotes ? (
+                                        <>
+                                            <label className="text-sm font-medium text-gray-700">Notes (optional, for all items)</label>
+                                            <textarea value={orderProductNotes} onChange={e => setOrderProductNotes(e.target.value)} className="mt-1 block w-full p-2 border border-gray-300 rounded-md" rows={2}></textarea>
+                                        </>
+                                    ) : (
+                                        <button type="button" onClick={() => setShowProductNotes(true)} className="text-sm text-indigo-600 hover:underline mt-2">Add Note</button>
+                                    )}
+                                </div>
+                                
+                                <button onClick={handleAddStagedItemsToOrder} disabled={stagedItemsForProduct.length === 0}
+                                    className="mt-auto bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 flex items-center w-full justify-center disabled:bg-indigo-400">
+                                    <PlusIcon className="h-5 w-5 mr-2" /> Add {stagedItemsForProduct.length} Item(s) to Order
+                                </button>
+                            </>
+                        ) : (
+                            <>
+                                {selectedAppSheetProduct.colors.length === 1 && (
+                                    <div className="mb-4">
+                                        <label className="text-sm font-medium text-gray-700">Color</label>
+                                        <p className="font-semibold text-gray-800 p-2 bg-gray-100 rounded-md mt-1">{orderProductColor}</p>
+                                    </div>
+                                )}
+                                <div className="flex items-center gap-2">
+                                    <span className="px-2.5 py-1.5 text-xs font-semibold text-indigo-800 bg-indigo-100 rounded-full">QTY</span>
+                                    <AccessibleNumberInput
+                                        ariaLabel="Product Quantity"
+                                        value={orderProductQuantity}
+                                        onChange={setOrderProductQuantity}
+                                    />
+                                </div>
+                                <div>
+                                    {showProductNotes ? (
+                                        <>
+                                            <label className="text-sm font-medium text-gray-700">Notes (optional)</label>
+                                            <textarea value={orderProductNotes} onChange={e => setOrderProductNotes(e.target.value)} className="mt-1 block w-full p-2 border border-gray-300 rounded-md" rows={2}></textarea>
+                                        </>
+                                    ) : (
+                                        <button type="button" onClick={() => setShowProductNotes(true)} className="text-sm text-indigo-600 hover:underline mt-2">Add Note</button>
+                                    )}
+                                </div>
+                                <button onClick={handleAddSingleItemToOrder} className="mt-auto bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 flex items-center w-full justify-center">
+                                    <PlusIcon className="h-5 w-5 mr-2" /> Add to Order
+                                </button>
+                            </>
+                        )}
+                    </div>
+                </Modal>
             )}
         </div>
     );

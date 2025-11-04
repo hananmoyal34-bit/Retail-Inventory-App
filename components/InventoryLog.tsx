@@ -160,7 +160,7 @@ const InventoryLog: React.FC = () => {
 
   const lowStockItems = useMemo(() => {
     const itemsByLocation: Record<string, { productName: string; stock: number }[]> = {};
-    Object.entries(groupedStock).forEach(([location, products]) => {
+    (Object.entries(groupedStock) as [string, { productName: string; stock: number }[]][]).forEach(([location, products]) => {
         if (selectedLocation !== 'All' && location !== selectedLocation) {
             return;
         }
@@ -373,7 +373,7 @@ const InventoryLog: React.FC = () => {
                     <button onClick={() => setExpandedInventoryLocations(new Set(Object.keys(groupedStock)))} className="px-3 py-1 text-xs font-medium text-indigo-700 bg-indigo-100 rounded-md">Expand All</button>
                     <button onClick={() => setExpandedInventoryLocations(new Set())} className="px-3 py-1 text-xs font-medium text-gray-700 bg-gray-200 rounded-md">Collapse All</button>
                 </div>
-                {Object.keys(groupedStock).length > 0 ? Object.entries(groupedStock).map(([location, products]) => (
+                {Object.keys(groupedStock).length > 0 ? (Object.entries(groupedStock) as [string, { productName: string; stock: number; }[]][]).map(([location, products]) => (
                 <details key={location} className="bg-white shadow-lg rounded-xl overflow-hidden group transition-all duration-300" open={expandedInventoryLocations.has(location)}>
                     <summary className="px-6 py-4 text-xl font-semibold text-gray-800 cursor-pointer list-none flex justify-between items-center hover:bg-gray-50 transition-colors" onClick={(e) => handleToggleInventoryLocation(e, location)}>
                     <div className="flex items-center gap-4">
@@ -421,7 +421,7 @@ const InventoryLog: React.FC = () => {
                     <button onClick={() => setExpandedLowStockLocations(new Set(Object.keys(lowStockItems)))} className="px-3 py-1 text-xs font-medium text-indigo-700 bg-indigo-100 rounded-md">Expand All</button>
                     <button onClick={() => setExpandedLowStockLocations(new Set())} className="px-3 py-1 text-xs font-medium text-gray-700 bg-gray-200 rounded-md">Collapse All</button>
                 </div>
-                {Object.keys(lowStockItems).length > 0 ? Object.entries(lowStockItems).map(([location, items]) => (
+                {Object.keys(lowStockItems).length > 0 ? (Object.entries(lowStockItems) as [string, { productName: string; stock: number; }[]][]).map(([location, items]) => (
                     <details key={location} className="bg-white shadow-lg rounded-xl overflow-hidden group transition-all duration-300" open={expandedLowStockLocations.has(location)}>
                         <summary className="px-6 py-4 text-xl font-semibold text-gray-800 cursor-pointer list-none flex justify-between items-center hover:bg-gray-50 transition-colors" onClick={(e) => handleToggleLowStockLocation(e, location)}>
                         <div className="flex items-center gap-4">
@@ -539,7 +539,7 @@ const InventoryLog: React.FC = () => {
                         <button onClick={() => setExpandedProducts(new Set(Object.keys(groupedTransactionLogs)))} className="px-3 py-1 text-xs font-medium text-indigo-700 bg-indigo-100 rounded-md">Expand All</button>
                         <button onClick={() => setExpandedProducts(new Set())} className="px-3 py-1 text-xs font-medium text-gray-700 bg-gray-200 rounded-md">Collapse All</button>
                     </div>
-                    {Object.keys(groupedTransactionLogs).length > 0 ? Object.entries(groupedTransactionLogs).map(([productName, logs]) => (
+                    {Object.keys(groupedTransactionLogs).length > 0 ? (Object.entries(groupedTransactionLogs) as [string, InventoryLogType[]][]).map(([productName, logs]) => (
                         <details key={productName} open={expandedProducts.has(productName)} className="bg-white shadow rounded-lg transition-all duration-300 group">
                             <summary className="px-4 py-3 text-lg font-semibold text-gray-800 cursor-pointer list-none flex justify-between items-center hover:bg-gray-50 rounded-t-lg" onClick={(e) => handleToggleProduct(e, productName)}>
                                 <span>{productName}</span>
@@ -669,7 +669,8 @@ const InventoryLog: React.FC = () => {
                         <button onClick={() => setExpandedProducts(new Set(Object.keys(groupedCountLogs)))} className="px-3 py-1 text-xs font-medium text-indigo-700 bg-indigo-100 rounded-md">Expand All</button>
                         <button onClick={() => setExpandedProducts(new Set())} className="px-3 py-1 text-xs font-medium text-gray-700 bg-gray-200 rounded-md">Collapse All</button>
                     </div>
-                    {Object.keys(groupedCountLogs).length > 0 ? Object.entries(groupedCountLogs).map(([productName, logs]) => (
+                    {/* FIX: Add explicit type casting for Object.entries to resolve 'unknown' type errors in TypeScript. */}
+                    {Object.keys(groupedCountLogs).length > 0 ? (Object.entries(groupedCountLogs) as [string, CountLog[]][]).map(([productName, logs]) => (
                         <details key={productName} open={expandedProducts.has(productName)} className="bg-white shadow rounded-lg transition-all duration-300 group">
                             <summary className="px-4 py-3 text-lg font-semibold text-gray-800 cursor-pointer list-none flex justify-between items-center hover:bg-gray-50 rounded-t-lg" onClick={(e) => handleToggleProduct(e, productName)}>
                                 <span>{productName}</span>

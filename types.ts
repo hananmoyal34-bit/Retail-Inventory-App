@@ -31,6 +31,7 @@ export interface AppSheetProduct {
   category: string;
   subCategory: string;
   lowStockThreshold: number;
+  onDailyCount?: boolean;
 }
 
 export interface ProductCategory {

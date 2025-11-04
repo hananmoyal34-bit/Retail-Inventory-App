@@ -1,5 +1,9 @@
 
 
+
+
+
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { getProducts, getLocations, getInventoryLogs, getCurrentDateInTimezone, formatDateToYMD, getAppSheetProducts, formatToLocaleString, getCountLogs, getDraftCounts } from '../services/dataService';
 import { submitInventoryCount, submitWarehouseCount, saveDraftCount } from '../services/writeService';
@@ -152,8 +156,10 @@ const InventoryCount: React.FC = () => {
     // 1. Find the latest physical count for each product BEFORE the selected date.
     const latestCounts = new Map<string, { count: number; date: string }>();
     countLogs
-      .filter(log => log.location === selectedLocation && formatDateToYMD(log.date) < date)
-      .forEach(log => {
+      // FIX: Add explicit type to `log` parameter to resolve potential `unknown` type error from failed type inference.
+      .filter((log: CountLog) => log.location === selectedLocation && formatDateToYMD(log.date) < date)
+      // FIX: Add explicit type to `log` parameter to resolve potential `unknown` type error from failed type inference.
+      .forEach((log: CountLog) => {
         const logYMD = formatDateToYMD(log.date);
         if (!logYMD) return;
 
@@ -177,7 +183,8 @@ const InventoryCount: React.FC = () => {
             let stock = lastCount.count;
 
             // Find all transactions that happened AFTER the last count but BEFORE the selected date.
-            const subsequentTransactions = inventoryLogs.filter(log => {
+            // FIX: Add explicit type to `log` parameter to resolve potential `unknown` type error from failed type inference.
+            const subsequentTransactions = inventoryLogs.filter((log: InventoryLog) => {
                 if (log.location !== selectedLocation || log.productName !== productName) return false;
                 const logYMD = formatDateToYMD(log.date);
                 // After last count date, but before the new count date
@@ -194,7 +201,8 @@ const InventoryCount: React.FC = () => {
             // Case 2: No previous count exists. Sum all transactions from the beginning up to the selected date.
             let stock = 0;
             inventoryLogs
-              .filter(log => {
+              // FIX: Add explicit type to `log` parameter to resolve potential `unknown` type error from failed type inference.
+              .filter((log: InventoryLog) => {
                   if (log.location !== selectedLocation || log.productName !== productName) return false;
                   const logDate = formatDateToYMD(log.date);
                   return logDate && logDate < date;
@@ -214,7 +222,8 @@ const InventoryCount: React.FC = () => {
     if (loading || products.length === 0 || !selectedLocation || !date) return;
     
     if(activeTab === 'count') {
-        const finalizedLogExists = countLogs.some(log => 
+        // FIX: Add explicit type to `log` parameter to resolve potential `unknown` type error from failed type inference.
+        const finalizedLogExists = countLogs.some((log: CountLog) => 
             log.location === selectedLocation && formatDateToYMD(log.date) === date
         );
         setIsFinalized(finalizedLogExists);
@@ -456,7 +465,7 @@ const InventoryCount: React.FC = () => {
     if (searchQuery) {
         const newExpandedCategories = new Set<string>();
         const newExpandedSubCategories = new Set<string>();
-        Object.entries(groupedWarehouseProducts).forEach(([category, subCategories]) => {
+        ((Object.entries(groupedWarehouseProducts) as [string, Record<string, AppSheetProduct[]>][])).forEach(([category, subCategories]) => {
             newExpandedCategories.add(category);
             Object.keys(subCategories).forEach(subCategory => {
                 newExpandedSubCategories.add(`${category}|${subCategory}`);
@@ -501,7 +510,7 @@ const InventoryCount: React.FC = () => {
 
     const entriesToSubmit: WarehouseCountEntry[] = (Object.entries(warehouseSelections) as [string, { quantities: { [color: string]: number }, notes: string }][]).flatMap(([productName, selection]) => {
         const productNotes = selection.notes;
-        return Object.entries(selection.quantities)
+        return (Object.entries(selection.quantities) as [string, number][])
             .filter(([, quantity]) => quantity > 0)
             .map(([color, quantity]) => ({
                 productID: productName,
@@ -548,7 +557,7 @@ const InventoryCount: React.FC = () => {
       const items = [];
       let totalQty = 0;
       for (const [productName, selection] of (Object.entries(warehouseSelections) as [string, { quantities: { [key: string]: number }, notes: string }][])) {
-          const colorEntries = Object.entries(selection.quantities).filter(([, qty]) => qty > 0);
+          const colorEntries = (Object.entries(selection.quantities) as [string, number][]).filter(([, qty]) => qty > 0);
           if (colorEntries.length > 0 || selection.notes) {
               const productQty = colorEntries.reduce((sum, [, qty]) => sum + qty, 0);
               totalQty += productQty;
@@ -898,7 +907,7 @@ const InventoryCount: React.FC = () => {
               </div>
 
               <div className="space-y-2">
-                  {Object.keys(groupedWarehouseProducts).length > 0 ? Object.entries(groupedWarehouseProducts).map(([category, subCategories]) => (
+                  {Object.keys(groupedWarehouseProducts).length > 0 ? ((Object.entries(groupedWarehouseProducts) as [string, Record<string, AppSheetProduct[]>][])).map(([category, subCategories]) => (
                       <details key={category} open={expandedCategories.has(category)} onToggle={(e) => handleToggleCategory(category, (e.target as HTMLDetailsElement).open)} className="bg-white shadow-sm rounded-lg overflow-hidden group">
                           <summary className="px-4 py-3 text-lg font-semibold text-gray-800 cursor-pointer list-none flex justify-between items-center bg-gray-100 hover:bg-gray-200/70 transition-colors">
                               <span>{category}</span>

@@ -93,7 +93,6 @@ const AccessibleNumberInput: React.FC<AccessibleNumberInputProps> = ({ id, value
         <PlusIcon className="h-5 w-5" />
       </button>
       
-      <QuickButton amount={2} />
       <QuickButton amount={5} isLast />
     </div>
   );

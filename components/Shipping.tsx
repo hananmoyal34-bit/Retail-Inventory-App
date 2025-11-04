@@ -25,7 +25,8 @@ const Shipping: React.FC<ShippingProps> = ({ currentUser, allLocations }) => {
         const userLocationsMap = new Map(allLocations.map(l => [l.name, l.locationFullName]));
         userLocationShortNames.forEach(shortName => {
             const fullName = userLocationsMap.get(shortName);
-            if (fullName) {
+            // FIX: Using a more explicit type guard to ensure `fullName` is a string, resolving potential linter issues.
+            if (typeof fullName === 'string') {
                 fullNames.add(fullName);
             }
         });

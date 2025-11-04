@@ -310,7 +310,7 @@ export const getShippingData = async (): Promise<ShippingData[]> => {
         storeRepName: safeParseString(row[3]),
         firstName: safeParseString(row[5]), // Column F
         lastName: safeParseString(row[6]), // Column G
-        ackReceiptUrl: safeParseString(row[22]), // Column W
+        ackReceiptUrl: safeParseString(row[21]), // Column V
     })).filter(s => {
         if (!s.timestamp || !s.storeName) return false;
         try {
