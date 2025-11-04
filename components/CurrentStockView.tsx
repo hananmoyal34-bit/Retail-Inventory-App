@@ -276,8 +276,7 @@ const CurrentStockView: React.FC = () => {
       
       {activeTab === 'locations' && (
         <div className="space-y-4 pt-4">
-            {/* FIX: Add explicit type casting for Object.entries to resolve 'unknown' type errors. */}
-            {Object.keys(groupedStock).length > 0 ? (Object.entries(groupedStock) as [string, { productName: string, stock: number }[]][]).map(([location, products]) => (
+            {Object.keys(groupedStock).length > 0 ? Object.entries(groupedStock).map(([location, products]) => (
             <details key={location} className="bg-white shadow-lg rounded-xl overflow-hidden group transition-all duration-300">
                 <summary className="px-6 py-4 text-xl font-semibold text-gray-800 cursor-pointer list-none flex justify-between items-center hover:bg-gray-50 transition-colors">
                 <div className="flex items-center gap-4">

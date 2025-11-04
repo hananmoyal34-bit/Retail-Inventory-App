@@ -2,8 +2,6 @@
 
 
 
-
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { getProducts, getLocations, getInventoryLogs, getCurrentDateInTimezone, formatDateToYMD, getAppSheetProducts, formatToLocaleString, getCountLogs, getDraftCounts } from '../services/dataService';
 import { submitInventoryCount, submitWarehouseCount, saveDraftCount } from '../services/writeService';
@@ -156,10 +154,8 @@ const InventoryCount: React.FC = () => {
     // 1. Find the latest physical count for each product BEFORE the selected date.
     const latestCounts = new Map<string, { count: number; date: string }>();
     countLogs
-      // FIX: Add explicit type to `log` parameter to resolve potential `unknown` type error from failed type inference.
-      .filter((log: CountLog) => log.location === selectedLocation && formatDateToYMD(log.date) < date)
-      // FIX: Add explicit type to `log` parameter to resolve potential `unknown` type error from failed type inference.
-      .forEach((log: CountLog) => {
+      .filter(log => log.location === selectedLocation && formatDateToYMD(log.date) < date)
+      .forEach(log => {
         const logYMD = formatDateToYMD(log.date);
         if (!logYMD) return;
 
@@ -183,8 +179,7 @@ const InventoryCount: React.FC = () => {
             let stock = lastCount.count;
 
             // Find all transactions that happened AFTER the last count but BEFORE the selected date.
-            // FIX: Add explicit type to `log` parameter to resolve potential `unknown` type error from failed type inference.
-            const subsequentTransactions = inventoryLogs.filter((log: InventoryLog) => {
+            const subsequentTransactions = inventoryLogs.filter(log => {
                 if (log.location !== selectedLocation || log.productName !== productName) return false;
                 const logYMD = formatDateToYMD(log.date);
                 // After last count date, but before the new count date
@@ -201,8 +196,7 @@ const InventoryCount: React.FC = () => {
             // Case 2: No previous count exists. Sum all transactions from the beginning up to the selected date.
             let stock = 0;
             inventoryLogs
-              // FIX: Add explicit type to `log` parameter to resolve potential `unknown` type error from failed type inference.
-              .filter((log: InventoryLog) => {
+              .filter(log => {
                   if (log.location !== selectedLocation || log.productName !== productName) return false;
                   const logDate = formatDateToYMD(log.date);
                   return logDate && logDate < date;
@@ -222,8 +216,7 @@ const InventoryCount: React.FC = () => {
     if (loading || products.length === 0 || !selectedLocation || !date) return;
     
     if(activeTab === 'count') {
-        // FIX: Add explicit type to `log` parameter to resolve potential `unknown` type error from failed type inference.
-        const finalizedLogExists = countLogs.some((log: CountLog) => 
+        const finalizedLogExists = countLogs.some(log => 
             log.location === selectedLocation && formatDateToYMD(log.date) === date
         );
         setIsFinalized(finalizedLogExists);
