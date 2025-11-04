@@ -2,9 +2,8 @@ const SPREADSHEET_ID = '1t70QsCiQaHwmgyzwul1QGURyhYZNtWx38dFeNdoMU-c';
 const BASE_URL = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq`;
 
 /**
- * A simple CSV parser for the format returned by the gviz endpoint.
- * It assumes all cells are wrapped in double quotes.
- * e.g., "cell1","cell2"\n"cell3","cell4"
+ * A CSV parser for the format returned by the gviz endpoint.
+ * This regex correctly handles cells containing commas and escaped double-quotes ("").
  * @param {string} csvText - The CSV content as a string.
  * @returns {string[][]} A 2D array of strings.
  */
@@ -15,9 +14,40 @@ const parseCSV = (csvText: string): string[][] => {
     const rows = csvText.trim().split('\n');
     return rows.map(row => {
         if (!row) return [];
-        // Slice to remove first and last quote, then split by the separator ","
-        return row.slice(1, -1).split('","');
-    }).filter(row => row.length > 0 && (row.length > 1 || row[0] !== '')); // Filter out empty rows
+        // This regex handles quoted cells, including escaped quotes ("") inside.
+        const regex = /"((?:[^"]|"")*)"(?:,|$)/g;
+        const cells: string[] = [];
+        let match;
+        // Reset lastIndex for subsequent exec calls
+        regex.lastIndex = 0;
+
+        let lastIndex = 0;
+
+        while ((match = regex.exec(row)) !== null) {
+            // Check for unquoted, non-comma content before this match (shouldn't happen in gviz, but good to check)
+            if (match.index > lastIndex) {
+                 // This handles potential "cells" that are not quoted.
+                 // gviz *should* quote everything, but if not, this tries to capture it.
+                 let unquoted = row.substring(lastIndex, match.index);
+                 // remove leading/trailing commas
+                 unquoted = unquoted.replace(/^,|,$/g, '');
+                 if(unquoted) cells.push(unquoted);
+            }
+          
+            // match[1] is the content inside the quotes.
+            // Unescape double quotes ("") which are used by Google Sheets for escaping.
+            cells.push(match[1].replace(/""/g, '"'));
+            lastIndex = regex.lastIndex;
+        }
+        
+        // Handle any trailing content after the last quote (if any)
+        if (lastIndex < row.length) {
+            let trailing = row.substring(lastIndex).replace(/^,|,$/g, '');
+            if(trailing) cells.push(trailing);
+        }
+
+        return cells;
+    }).filter(row => row.length > 0 && row.some(cell => cell.trim() !== '')); // Filter out empty or whitespace-only rows
 };
 
 

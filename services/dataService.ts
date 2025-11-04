@@ -297,20 +297,45 @@ export const getLocationOrders = async (): Promise<LocationOrder[]> => {
 export const getShippingData = async (): Promise<ShippingData[]> => {
     const data = await readSheet(SHEET_NAMES.shipping);
     if (data.length <= 1) return [];
+
+    // Get headers and trim them to prevent whitespace issues
+    const headers = data[0].map(h => h.trim());
     const rows = data.slice(1);
+
+    // --- This is the fix ---
+    // Find column indices dynamically by their names
+    const colMap = {
+        timestamp: headers.indexOf('Timestamp'),
+        storeName: headers.indexOf('Store Name'),
+        orderNo: headers.indexOf('Order No.'),
+        storeRepName: headers.indexOf('Store Rep Name'),
+        firstName: headers.indexOf('First Name'),
+        lastName: headers.indexOf('Last Name'),
+        ackReceiptUrl: headers.indexOf('Acknowledgment Receipt') // <-- Finds the right column
+    };
+
+    // Error check: What if the column name changed?
+    if (colMap.ackReceiptUrl === -1) {
+        console.error("CRITICAL: Could not find 'Acknowledgment Receipt' column! Check sheet header names.");
+    }
+    // --- End of fix ---
 
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    sevenDaysAgo.setHours(0, 0, 0, 0); // Start of the 7th day ago
+    sevenDaysAgo.setHours(0, 0, 0, 0);
 
+    // Now, we map using the safe colMap object
     return rows.map(row => ({
-        timestamp: safeParseString(row[0]),
-        storeName: safeParseString(row[1]),
-        orderNo: safeParseString(row[2]),
-        storeRepName: safeParseString(row[3]),
-        firstName: safeParseString(row[5]), // Column F
-        lastName: safeParseString(row[6]), // Column G
-        ackReceiptUrl: safeParseString(row[22]), // Column W
+        timestamp: colMap.timestamp !== -1 ? safeParseString(row[colMap.timestamp]) : '',
+        storeName: colMap.storeName !== -1 ? safeParseString(row[colMap.storeName]) : '',
+        orderNo: colMap.orderNo !== -1 ? safeParseString(row[colMap.orderNo]) : '',
+        storeRepName: colMap.storeRepName !== -1 ? safeParseString(row[colMap.storeRepName]) : '',
+        firstName: colMap.firstName !== -1 ? safeParseString(row[colMap.firstName]) : '',
+        lastName: colMap.lastName !== -1 ? safeParseString(row[colMap.lastName]) : '',
+        
+        //  ↓↓↓ THE FIX IN ACTION ↓↓↓
+        ackReceiptUrl: colMap.ackReceiptUrl !== -1 ? safeParseString(row[colMap.ackReceiptUrl]) : '',
+    
     })).filter(s => {
         if (!s.timestamp || !s.storeName) return false;
         try {

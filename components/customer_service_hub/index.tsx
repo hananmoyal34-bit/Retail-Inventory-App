@@ -89,7 +89,8 @@ const CustomerServiceHub: React.FC = () => {
         try {
             const saved = localStorage.getItem(getLocalStorageKey(activeTab));
             if (saved) {
-                setVisibleColumnKeys(new Set(JSON.parse(saved)));
+                // FIX: Add type assertion to ensure the parsed data from localStorage matches the expected type.
+                setVisibleColumnKeys(new Set(JSON.parse(saved) as (keyof CustomerRecord | 'Customer')[]));
             } else {
                 setVisibleColumnKeys(new Set(DEFAULT_VISIBLE_COLUMNS));
             }
