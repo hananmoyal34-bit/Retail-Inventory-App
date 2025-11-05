@@ -12,7 +12,7 @@
  * 6. Copy the final Web App URL and paste it into the `APPS_SCRIPT_URL` constant below.
  * ===============================================================================================
  */
-import { CountEntry, Location, OrderPayload, ProductCategory, Product, SubmitWarehouseCountPayload, User, AppSheetProduct, SaveDraftPayload, Account, Task, TaskFormState, Contact, ContactFormState, FormState, FileForUpload } from '../types';
+import { CountEntry, Location, OrderPayload, ProductCategory, Product, SubmitWarehouseCountPayload, User, AppSheetProduct, SaveDraftPayload, Account, Task, TaskFormState, Contact, ContactFormState, FormState, FileForUpload, UpdateOrderPayload } from '../types';
 
 // IMPORTANT: Replace this placeholder with your own Google Apps Script Web App URL.
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzmOdNeBoevXAQGD762kxFnr87GvVAxjVq5WT8p7N4SJZRwvZ2BoI645V1PuIOWkwrjsQ/exec';
@@ -117,6 +117,10 @@ export const submitOrder = async (payload: OrderPayload): Promise<{ success: boo
     ...payload,
   };
   return postToAppsScript(scriptPayload);
+};
+
+export const updateOrder = async (payload: UpdateOrderPayload): Promise<{ success: boolean; message: string }> => {
+    return postToAppsScript({ action: 'updateOrder', ...payload });
 };
 
 export const updateOrderStatus = async (payload: { orderID: string; status: string; officeNotes: string; quantity?: number }): Promise<{ success: boolean; message: string }> => {

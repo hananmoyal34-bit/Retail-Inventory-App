@@ -59,6 +59,9 @@ function doPost(e) {
       case 'submitOrder':
         response = handleSubmitOrder(payload);
         break;
+      case 'updateOrder':
+        response = handleUpdateOrder(payload);
+        break;
       case 'addLocation':
         response = handleAddLocation(payload);
         break;
@@ -392,11 +395,11 @@ function handleSubmitWarehouseCount(payload) {
 
 
 /**
- * Handles the submission of new orders from the login portal using batch writes.
+ * Handles the submission of new orders from the manager portal.
  */
 function handleSubmitOrder(payload) {
   const sheet = getSheet(SHEET_NAMES.locationOrders);
-  const timestamp = new Date();
+  const date = new Date();
   const userId = payload.userId;
   const userName = payload.userName;
   
@@ -412,10 +415,10 @@ function handleSubmitOrder(payload) {
         item.notes,         // E: notes
         location,           // F: location
         userId,             // G: createdBy (User ID)
-        timestamp,          // H: timestamp
+        date,               // H: timestamp
         userName,           // I: userName
-        'Pending',          // J: Status (Default value added)
-        ''                  // K: Office Notes (Default value added)
+        'Pending',          // J: Status
+        ''                  // K: Office Notes
       ];
       orderRows.push(newRow);
     });
@@ -429,51 +432,151 @@ function handleSubmitOrder(payload) {
   return { status: 'success', message: 'Order submitted successfully!' };
 }
 
+/**
+ * Handles order updates from managers (editing their own orders).
+ */
+function handleUpdateOrder(payload) {
+  const sheet = getSheet(SHEET_NAMES.locationOrders);
+  const { orderID, item, colors, quantity, notes } = payload;
+
+  const rowInfo = findRowById(sheet, orderID, 'OrderID');
+  if (!rowInfo) throw new Error(`Order ID ${orderID} not found.`);
+
+  const statusCol = rowInfo.headers.indexOf('Status');
+  if (statusCol !== -1 && rowInfo.rowData[statusCol] !== 'Pending') {
+    throw new Error('This order has been processed by logistics and can no longer be edited.');
+  }
+
+  const h = rowInfo.headers;
+  const itemCol = h.indexOf('Item');
+  const colorsCol = h.indexOf('Colors');
+  const quantityCol = h.indexOf('Quantity');
+  const notesCol = h.indexOf('Notes');
+  const timestampCol = h.indexOf('Timestamp');
+  
+  if (itemCol !== -1) sheet.getRange(rowInfo.rowIndex, itemCol + 1).setValue(item);
+  if (colorsCol !== -1) sheet.getRange(rowInfo.rowIndex, colorsCol + 1).setValue(colors);
+  if (quantityCol !== -1) sheet.getRange(rowInfo.rowIndex, quantityCol + 1).setValue(quantity);
+  if (notesCol !== -1) sheet.getRange(rowInfo.rowIndex, notesCol + 1).setValue(notes);
+  if (timestampCol !== -1) sheet.getRange(rowInfo.rowIndex, timestampCol + 1).setValue(new Date()); // Update timestamp on edit
+
+  return { status: 'success', message: `Order ${orderID} updated successfully.` };
+}
+
 
 /**
  * Finds an order by its ID and updates its Status, Office Notes, and optionally Quantity.
+ * Also triggers the automatic update of the draft count if conditions are met.
  */
 function handleUpdateOrderStatus(payload) {
   const { orderID, status, officeNotes, quantity } = payload;
-  if (!orderID) {
-    throw new Error('Order ID is missing from the request.');
-  }
+  if (!orderID) throw new Error('Order ID is missing from the request.');
   
   const sheet = getSheet(SHEET_NAMES.locationOrders);
   const rowInfo = findRowById(sheet, orderID, 'OrderID');
 
-  if (rowInfo) {
-    const h = rowInfo.headers;
-    const statusCol = h.indexOf('Status');
-    const officeNotesCol = h.indexOf('Office Notes');
-    const quantityCol = h.indexOf('Quantity');
+  if (!rowInfo) throw new Error(`Order ID ${orderID} not found.`);
+  
+  const h = rowInfo.headers;
+  const statusCol = h.indexOf('Status');
+  const officeNotesCol = h.indexOf('Office Notes');
+  const quantityCol = h.indexOf('Quantity');
 
-    if (statusCol !== -1) sheet.getRange(rowInfo.rowIndex, statusCol + 1).setValue(status);
-    if (officeNotesCol !== -1) sheet.getRange(rowInfo.rowIndex, officeNotesCol + 1).setValue(officeNotes);
-    if (quantityCol !== -1 && quantity !== undefined && quantity !== null) {
-      sheet.getRange(rowInfo.rowIndex, quantityCol + 1).setValue(quantity);
+  const originalStatus = statusCol !== -1 ? rowInfo.rowData[statusCol] : 'Pending';
+  const isFirstPickupOrPartial = (status === 'Pickup' || status === 'Partial') && originalStatus === 'Pending';
+  
+  // --- Auto Stock-In to Draft Logic ---
+  if (isFirstPickupOrPartial) {
+    const itemCol = h.indexOf('Item');
+    const locationCol = h.indexOf('Location');
+    
+    const productName = rowInfo.rowData[itemCol];
+    const location = rowInfo.rowData[locationCol];
+    const orderQuantity = (status === 'Partial' && quantity !== undefined) ? quantity : rowInfo.rowData[quantityCol];
+
+    // Check if the product is on the daily count list
+    const productsSheet = getSheet(SHEET_NAMES.products);
+    const productValues = productsSheet.getRange('B:B').getValues().flat(); // Assuming product names are in column B
+    const isOnDailyCount = productValues.includes(productName);
+
+    if (isOnDailyCount) {
+      updateDraftCountStockIn(location, productName, orderQuantity);
     }
-    return { status: 'success', message: 'Order ' + orderID + ' updated successfully.' };
+  }
+  // --- End Auto Stock-In Logic ---
+
+  if (statusCol !== -1) sheet.getRange(rowInfo.rowIndex, statusCol + 1).setValue(status);
+  if (officeNotesCol !== -1) sheet.getRange(rowInfo.rowIndex, officeNotesCol + 1).setValue(officeNotes);
+  if (quantityCol !== -1 && quantity !== undefined && quantity !== null) {
+    sheet.getRange(rowInfo.rowIndex, quantityCol + 1).setValue(quantity);
   }
 
-  throw new Error('Order ID ' + orderID + ' not found.');
+  return { status: 'success', message: 'Order ' + orderID + ' updated successfully.' };
 }
+
+/**
+ * Helper function for `handleUpdateOrderStatus`. Updates the stock-in quantity for a given
+ * product in the Draft Counts sheet for the current day. Creates a new draft row if one doesn't exist.
+ */
+function updateDraftCountStockIn(location, productName, quantityToAdd) {
+  const draftsSheet = getSheet(SHEET_NAMES.draftCounts);
+  const data = draftsSheet.getDataRange().getValues();
+  const todayYMD = new Date().toISOString().slice(0, 10);
+  
+  let foundRow = false;
+
+  for (var i = 1; i < data.length; i++) {
+    const row = data[i];
+    const rowDate = new Date(row[2]).toISOString().slice(0, 10);
+    const rowLocation = row[1];
+    const rowProduct = row[3];
+
+    if (rowDate === todayYMD && rowLocation === location && rowProduct === productName) {
+      const stockInColIndex = 5; // Column F for Stock In
+      const currentStockIn = Number(row[stockInColIndex]) || 0;
+      draftsSheet.getRange(i + 1, stockInColIndex + 1).setValue(currentStockIn + Number(quantityToAdd));
+      foundRow = true;
+      break;
+    }
+  }
+
+  if (!foundRow) {
+    // If no draft exists for this product today, create one.
+    // Opening stock is 0; it will be calculated by the front-end when the user opens the count page.
+    const newDraftRow = [
+      `${location}-${todayYMD}-${productName}`, // draftID
+      location,
+      new Date(), // date
+      productName,
+      0, // openingStock (will be calculated by FE)
+      quantityToAdd, // stockIn
+      0, // inStoreSales
+      0, // warehouseShipping
+      0, // physicalEndCount
+      false, // isOpeningStockManual
+      'System-Auto', // lastUpdatedBy
+      new Date() // timestamp
+    ];
+    draftsSheet.appendRow(newDraftRow);
+  }
+}
+
 
 function handleDeleteOrder(payload) {
   const sheet = getSheet(SHEET_NAMES.locationOrders);
   const orderID = payload.orderID;
-  if (!orderID) {
-    throw new Error("Order ID is required for deletion.");
-  }
+  if (!orderID) throw new Error("Order ID is required for deletion.");
   
   const rowInfo = findRowById(sheet, orderID, 'OrderID');
+  if (!rowInfo) throw new Error("Order ID not found for deletion: " + orderID);
 
-  if (rowInfo) {
-    sheet.deleteRow(rowInfo.rowIndex);
-    return { status: 'success', message: 'Order deleted successfully.' };
+  const statusCol = rowInfo.headers.indexOf('Status');
+  if (statusCol !== -1 && rowInfo.rowData[statusCol] !== 'Pending') {
+    throw new Error('This order has been processed by logistics and can no longer be deleted.');
   }
   
-  throw new Error("Order ID not found for deletion: " + orderID);
+  sheet.deleteRow(rowInfo.rowIndex);
+  return { status: 'success', message: 'Order deleted successfully.' };
 }
 
 

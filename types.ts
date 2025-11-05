@@ -111,7 +111,7 @@ export interface InventoryLog {
   date: string;
   location: string;
   productName: string;
-  transactionType: 'Stock In' | 'In-Store Sale' | 'Warehouse Shipping' | 'Adjustment-Damage' | 'Initial Stock' | 'Adjustment-Variance' | 'Adjustment-Manual' | 'Warehouse-Out-Sys' | 'System Deduction';
+  transactionType: 'Stock In' | 'In-Store Sale' | 'Warehouse Shipping' | 'Adjustment-Damage' | 'Initial Stock' | 'Adjustment-Variance' | 'Adjustment-Manual' | 'Warehouse-Out-Sys' | 'System Deduction' | 'Order Received';
   quantity: number;
 }
 
@@ -139,7 +139,7 @@ export interface LocationOrder {
   createdBy: string;
   timestamp: string;
   userName: string;
-  status: 'Pending' | 'Pickup' | 'Delivered' | string;
+  status: 'Pending' | 'Pickup' | 'Delivered' | 'Partial' | string;
   officeNotes: string;
 }
 
@@ -158,6 +158,14 @@ export interface OrderPayload {
   userName: string;
   locations: string[];
   items: OrderItem[];
+}
+
+export interface UpdateOrderPayload {
+    orderID: string;
+    item: string;
+    colors: string;
+    quantity: number;
+    notes: string;
 }
 
 export interface WarehouseCountLog {

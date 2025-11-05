@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { User, Product, OrderItem, OrderPayload, Location, LocationOrder, AppSheetProduct } from '../types';
+import { User, Product, OrderItem, OrderPayload, Location, LocationOrder, AppSheetProduct, UpdateOrderPayload } from '../types';
 import { getUsers, getProducts, getLocations, getLocationOrders, formatToLocaleString, getAppSheetProducts, formatDateToYMD } from '../services/dataService';
-import { submitOrder } from '../services/writeService';
-import { PlusIcon, SearchIcon, TrashIcon, MinusIcon, ChevronDownIcon, CheckCircleIcon } from './icons';
+import { submitOrder, updateOrder, deleteOrder } from '../services/writeService';
+import { PlusIcon, SearchIcon, TrashIcon, MinusIcon, ChevronDownIcon, CheckCircleIcon, PencilIcon } from './icons';
 import Shipping from './Shipping';
 import LocationTag from './LocationTag';
 import AccessibleNumberInput from './AccessibleNumberInput';
 import Modal from './Modal';
+import Tooltip from './Tooltip';
+import ConfirmationModal from './customer_service_hub/components/ConfirmationModal';
 
 interface ManagerPortalProps {
     user: User;
@@ -49,27 +51,32 @@ const ManagerPortal: React.FC<ManagerPortalProps> = ({ user, onLogout }) => {
 
     // State for My Orders tab
     const [allLocationOrders, setAllLocationOrders] = useState<LocationOrder[]>([]);
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+    const [editingOrder, setEditingOrder] = useState<LocationOrder | null>(null);
+    const [editFormState, setEditFormState] = useState<UpdateOrderPayload | null>(null);
+
+    const fetchAllData = async () => {
+        setIsLoading(true);
+        try {
+            const [locationsData, ordersData, appSheetData] = await Promise.all([
+                getLocations(),
+                getLocationOrders(),
+                getAppSheetProducts(),
+            ]);
+            setAllLocations(locationsData);
+            setAllLocationOrders(ordersData);
+            setAppSheetProducts(appSheetData);
+        } catch (error) {
+            console.error("Failed to initialize portal:", error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
 
     useEffect(() => {
-        const initializePortal = async () => {
-            setIsLoading(true);
-            try {
-                const [locationsData, ordersData, appSheetData] = await Promise.all([
-                    getLocations(),
-                    getLocationOrders(),
-                    getAppSheetProducts(),
-                ]);
-                setAllLocations(locationsData);
-                setAllLocationOrders(ordersData);
-                setAppSheetProducts(appSheetData);
-            } catch (error) {
-                console.error("Failed to initialize portal:", error);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-        initializePortal();
+        fetchAllData();
     }, []);
 
     const handleToggleLocation = (locationName: string) => {
@@ -332,6 +339,58 @@ const ManagerPortal: React.FC<ManagerPortalProps> = ({ user, onLogout }) => {
         setSubmissionStatus({ type: null, message: '' });
     };
 
+    // --- Edit/Delete Handlers ---
+    const openEditModal = (order: LocationOrder) => {
+        setEditingOrder(order);
+        setEditFormState({
+            orderID: order.orderID,
+            item: order.item,
+            colors: order.colors,
+            quantity: order.quantity,
+            notes: order.notes,
+        });
+        setIsEditModalOpen(true);
+    };
+
+    const openDeleteModal = (order: LocationOrder) => {
+        setEditingOrder(order);
+        setIsDeleteModalOpen(true);
+    };
+
+    const handleUpdateOrder = async () => {
+        if (!editFormState) return;
+        setIsSubmitting(true);
+        const result = await updateOrder(editFormState);
+        if (result.success) {
+            showSuccessMessage('Order updated successfully!');
+            await fetchAllData();
+            setIsEditModalOpen(false);
+        } else {
+            alert(`Error: ${result.message}`);
+        }
+        setIsSubmitting(false);
+    };
+    
+    const handleDeleteOrder = async () => {
+        if (!editingOrder) return;
+        setIsSubmitting(true);
+        const result = await deleteOrder(editingOrder.orderID);
+        if (result.success) {
+            showSuccessMessage('Order deleted successfully!');
+            await fetchAllData();
+            setIsDeleteModalOpen(false);
+        } else {
+            alert(`Error: ${result.message}`);
+        }
+        setIsSubmitting(false);
+    };
+    
+    const showSuccessMessage = (message: string) => {
+        setSubmissionStatus({ type: 'success', message });
+        setTimeout(() => setSubmissionStatus({ type: null, message: '' }), 4000);
+    };
+    // ----------------------------
+
     if (isLoading) {
         return (
             <div className="flex justify-center items-center h-screen">
@@ -381,10 +440,17 @@ const ManagerPortal: React.FC<ManagerPortalProps> = ({ user, onLogout }) => {
                  <div className="border-b border-gray-200">
                     <nav className="-mb-px flex space-x-8" aria-label="Tabs">
                         {renderTabButton('createOrder', 'Create Order')}
-                        {renderTabButton('myOrders', 'Orders')}
+                        {renderTabButton('myOrders', 'My Orders')}
                         {renderTabButton('shipments', 'Shipments')}
                     </nav>
                 </div>
+                
+                 {submissionStatus.type === 'success' && activeTab !== 'createOrder' && (
+                    <div className="bg-green-100 border-l-4 border-green-500 text-green-700 p-4" role="alert">
+                        <p>{submissionStatus.message}</p>
+                    </div>
+                )}
+
 
                 <div className="pt-4">
                     {activeTab === 'createOrder' && (
@@ -404,29 +470,31 @@ const ManagerPortal: React.FC<ManagerPortalProps> = ({ user, onLogout }) => {
                          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                             <div className="lg:col-span-2 space-y-6">
                                 <div className="bg-white p-6 rounded-lg shadow-md">
-                                    <h3 className="text-xl font-semibold mb-4 border-b pb-2">Select Locations</h3>
-                                    {userLocations.length > 0 ? (
-                                        <div className="space-y-2">
-                                            <p className="text-sm text-gray-600 mb-2">Select which of your assigned locations this order is for.</p>
-                                            {userLocations.map(location => (
-                                                <label key={location} className="flex items-center p-3 rounded-md hover:bg-gray-100 transition-colors cursor-pointer border">
-                                                    <input
-                                                        type="checkbox"
-                                                        className="h-5 w-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                                                        checked={selectedLocations.includes(location)}
-                                                        onChange={() => handleToggleLocation(location)}
-                                                    />
-                                                    <span className="ml-3 text-gray-700 font-medium">{location}</span>
-                                                </label>
-                                            ))}
-                                        </div>
-                                    ) : (
-                                        <p className="text-red-600">No location assigned to your user profile. Please contact an administrator.</p>
-                                    )}
+                                     <h3 className="text-xl font-semibold mb-4 border-b pb-2">Step 1: Select Locations</h3>
+                                    <div className="space-y-4">
+                                        {userLocations.length > 0 ? (
+                                            <div className="space-y-2">
+                                                <p className="text-sm text-gray-600 mb-2">Select which of your assigned locations this order is for.</p>
+                                                {userLocations.map(location => (
+                                                    <label key={location} className="flex items-center p-3 rounded-md hover:bg-gray-100 transition-colors cursor-pointer border">
+                                                        <input
+                                                            type="checkbox"
+                                                            className="h-5 w-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                                            checked={selectedLocations.includes(location)}
+                                                            onChange={() => handleToggleLocation(location)}
+                                                        />
+                                                        <span className="ml-3 text-gray-700 font-medium">{location}</span>
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <p className="text-red-600">No location assigned to your user profile. Please contact an administrator.</p>
+                                        )}
+                                    </div>
                                 </div>
 
                                 <div className="bg-white p-6 rounded-lg shadow-md">
-                                    <h3 className="text-xl font-semibold mb-4 border-b pb-2">Add Items to Order</h3>
+                                    <h3 className="text-xl font-semibold mb-4 border-b pb-2">Step 2: Add Items to Order</h3>
                                     
                                     <details className="p-4 border rounded-md mb-4 bg-gray-50 group" open>
                                         <summary className="font-semibold text-gray-800 list-none cursor-pointer flex justify-between items-center">
@@ -522,7 +590,7 @@ const ManagerPortal: React.FC<ManagerPortalProps> = ({ user, onLogout }) => {
 
                             <div className="lg:col-span-1">
                                 <div className="bg-white p-6 rounded-lg shadow-md lg:sticky top-24">
-                                    <h3 className="text-xl font-semibold mb-4 border-b pb-2">Order Summary</h3>
+                                    <h3 className="text-xl font-semibold mb-4 border-b pb-2">Step 3: Review & Submit</h3>
                                     {orderItems.length === 0 ? (
                                         <p className="text-gray-500 text-center py-8">Your order is empty.</p>
                                     ) : (
@@ -593,27 +661,46 @@ const ManagerPortal: React.FC<ManagerPortalProps> = ({ user, onLogout }) => {
                                                     <div key={date} className="pl-2 sm:pl-4 border-l-2 border-indigo-200">
                                                         <h4 className="font-semibold text-gray-700 text-md mb-3 -ml-2 sm:-ml-4 pl-3 bg-gray-200/50 py-1 rounded-r-md">{formattedDate}</h4>
                                                         <div className="space-y-3">
-                                                            {ordersForDay.map(order => (
-                                                                <div key={order.orderID} className="bg-white border rounded-lg p-3 shadow-sm">
-                                                                    <div className="flex justify-between items-start gap-2">
-                                                                        <div>
-                                                                            <h5 className="font-bold text-indigo-700">{order.item}</h5>
-                                                                            <p className="text-sm text-gray-700 mt-1">
-                                                                                {order.colors && <>{order.colors} - </>}
-                                                                                <span className="font-semibold">{order.quantity} units</span>
-                                                                            </p>
+                                                            {ordersForDay.map(order => {
+                                                                const isLocked = order.status !== 'Pending';
+                                                                const disabledButtonClasses = "text-gray-300 cursor-not-allowed";
+                                                                const enabledButtonClasses = "text-indigo-600 hover:text-indigo-900";
+                                                                const enabledDeleteClasses = "text-red-600 hover:text-red-900";
+
+                                                                return (
+                                                                    <div key={order.orderID} className="bg-white border rounded-lg p-3 shadow-sm">
+                                                                        <div className="flex justify-between items-start gap-2">
+                                                                            <div>
+                                                                                <h5 className="font-bold text-indigo-700">{order.item}</h5>
+                                                                                <p className="text-sm text-gray-700 mt-1">
+                                                                                    {order.colors && <>{order.colors} - </>}
+                                                                                    <span className="font-semibold">{order.quantity} units</span>
+                                                                                </p>
+                                                                            </div>
+                                                                            <div className="flex items-center gap-2">
+                                                                                <span className="text-xs font-semibold px-2 py-1 rounded-full bg-yellow-100 text-yellow-800">{order.status}</span>
+                                                                                <div className="flex items-center">
+                                                                                    <Tooltip text={isLocked ? "Order processed by logistics. Cannot edit." : "Edit Order"}>
+                                                                                        <button onClick={() => openEditModal(order)} disabled={isLocked} className={`p-1 rounded-md ${isLocked ? disabledButtonClasses : enabledButtonClasses}`}>
+                                                                                            <PencilIcon className="h-5 w-5" />
+                                                                                        </button>
+                                                                                    </Tooltip>
+                                                                                    <Tooltip text={isLocked ? "Order processed by logistics. Cannot delete." : "Delete Order"}>
+                                                                                         <button onClick={() => openDeleteModal(order)} disabled={isLocked} className={`p-1 rounded-md ${isLocked ? disabledButtonClasses : enabledDeleteClasses}`}>
+                                                                                            <TrashIcon className="h-5 w-5" />
+                                                                                        </button>
+                                                                                    </Tooltip>
+                                                                                </div>
+                                                                            </div>
                                                                         </div>
-                                                                         <p className="text-xs text-gray-500 flex-shrink-0">
-                                                                            {(formatToLocaleString(order.timestamp) || ' ').split(', ')[1]}
-                                                                        </p>
+                                                                        {order.notes && (
+                                                                            <p className="text-xs text-gray-600 italic mt-2 pt-2 border-t">
+                                                                                &quot;{order.notes}&quot;
+                                                                            </p>
+                                                                        )}
                                                                     </div>
-                                                                    {order.notes && (
-                                                                        <p className="text-xs text-gray-600 italic mt-2 pt-2 border-t">
-                                                                            &quot;{order.notes}&quot;
-                                                                        </p>
-                                                                    )}
-                                                                </div>
-                                                            ))}
+                                                                );
+                                                            })}
                                                         </div>
                                                     </div>
                                                 )})}
@@ -754,6 +841,47 @@ const ManagerPortal: React.FC<ManagerPortalProps> = ({ user, onLogout }) => {
                     </div>
                 </Modal>
             )}
+
+            {/* Edit Modal */}
+            <Modal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} title="Edit Order">
+                {editFormState && (
+                    <div className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700">Item Name</label>
+                            <input type="text" value={editFormState.item} onChange={e => setEditFormState(p => p ? {...p, item: e.target.value} : null)} className="mt-1 block w-full p-2 border border-gray-300 rounded-md"/>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700">Colors</label>
+                            <input type="text" value={editFormState.colors} onChange={e => setEditFormState(p => p ? {...p, colors: e.target.value} : null)} className="mt-1 block w-full p-2 border border-gray-300 rounded-md"/>
+                        </div>
+                         <div>
+                            <label className="block text-sm font-medium text-gray-700">Quantity</label>
+                            <input type="number" value={editFormState.quantity} onChange={e => setEditFormState(p => p ? {...p, quantity: parseInt(e.target.value) || 0} : null)} className="mt-1 block w-full p-2 border border-gray-300 rounded-md"/>
+                        </div>
+                         <div>
+                            <label className="block text-sm font-medium text-gray-700">Notes</label>
+                            <textarea value={editFormState.notes} onChange={e => setEditFormState(p => p ? {...p, notes: e.target.value} : null)} className="mt-1 block w-full p-2 border border-gray-300 rounded-md" rows={3}/>
+                        </div>
+                        <div className="flex justify-end gap-2 pt-4">
+                            <button onClick={() => setIsEditModalOpen(false)} className="px-4 py-2 bg-gray-200 rounded-md">Cancel</button>
+                            <button onClick={handleUpdateOrder} disabled={isSubmitting} className="px-4 py-2 bg-indigo-600 text-white rounded-md disabled:bg-indigo-300">
+                                {isSubmitting ? 'Saving...' : 'Save Changes'}
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </Modal>
+            
+            {/* Delete Confirmation Modal */}
+            <ConfirmationModal
+                isOpen={isDeleteModalOpen}
+                onClose={() => setIsDeleteModalOpen(false)}
+                onConfirm={handleDeleteOrder}
+                title="Delete Order"
+                message={`Are you sure you want to delete the order for "${editingOrder?.item}"? This action cannot be undone.`}
+                isConfirming={isSubmitting}
+                confirmText="Delete"
+            />
         </div>
     );
 };
