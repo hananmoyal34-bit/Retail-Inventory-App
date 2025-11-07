@@ -37,7 +37,7 @@ const ManagerPortal: React.FC<ManagerPortalProps> = ({ user, onLogout }) => {
     const [appSheetProducts, setAppSheetProducts] = useState<AppSheetProduct[]>([]);
     const [allLocations, setAllLocations] = useState<Location[]>([]);
     const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
-    const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
+    const [selectedLocations, setSelectedLocations] = useState<string[]>(() => user.location ? user.location.split(',').map(l => l.trim()).filter(Boolean) : []);
     
     // Form input states
     const [selectedAppSheetProduct, setSelectedAppSheetProduct] = useState<AppSheetProduct | null>(null);
@@ -350,7 +350,7 @@ const ManagerPortal: React.FC<ManagerPortalProps> = ({ user, onLogout }) => {
 
     const resetOrderForm = () => {
         setOrderItems([]);
-        setSelectedLocations([]);
+        setSelectedLocations(user.location ? user.location.split(',').map(l => l.trim()).filter(Boolean) : []);
         setSubmissionStatus({ type: null, message: '' });
     };
 

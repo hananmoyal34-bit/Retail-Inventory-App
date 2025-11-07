@@ -182,7 +182,8 @@ const CurrentStockView: React.FC = () => {
             acc[category].push(product);
             acc[category].sort((a, b) => a.productName.localeCompare(b.productName));
             return acc;
-        }, {});
+// @FIx: Explicitly type the initial value of reduce to avoid type inference issues.
+        }, {} as Record<string, WarehouseStockProduct[]>);
         
         // FIX: Explicitly type the accumulator to ensure correct type inference downstream.
         return Object.keys(groupedByCategory).sort().reduce(
@@ -190,7 +191,8 @@ const CurrentStockView: React.FC = () => {
             obj[key] = groupedByCategory[key]; 
             return obj;
           }, 
-          {}
+// @FIx: Explicitly type the initial value of reduce to avoid type inference issues.
+          {} as Record<string, WarehouseStockProduct[]>
         );
 
     }, [warehouseCountLogs, appSheetProducts]);
