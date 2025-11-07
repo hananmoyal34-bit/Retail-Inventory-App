@@ -8,6 +8,8 @@
 
 
 
+
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { getProducts, getLocations, getInventoryLogs, getCurrentDateInTimezone, formatDateToYMD, getAppSheetProducts, formatToLocaleString, getCountLogs, getDraftCounts } from '../services/dataService';
 import { submitInventoryCount, submitWarehouseCount, saveDraftCount } from '../services/writeService';
@@ -914,7 +916,7 @@ const InventoryCount: React.FC = () => {
                           </summary>
                           <div className="p-2 space-y-1 bg-gray-50/50">
                               {/* FIX: Add explicit type casting for Object.entries to resolve 'unknown' type error on `productsInSubCategory`. */}
-                              {(Object.entries(subCategories) as [string, AppSheetProduct[]][]).map(([subCategory, productsInSubCategory]) => (
+                              {(Object.entries(subCategories)).map(([subCategory, productsInSubCategory]) => (
                                   <details key={`${category}-${subCategory}`} open={expandedSubCategories.has(`${category}|${subCategory}`)} onToggle={(e) => handleToggleSubCategory(category, subCategory, (e.target as HTMLDetailsElement).open)} className="group/sub">
                                       <summary className="px-2 py-2 text-md font-medium text-gray-700 cursor-pointer list-none flex justify-between items-center hover:bg-gray-200/50 rounded-md transition-colors">
                                           <span>{subCategory}</span>

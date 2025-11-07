@@ -30,6 +30,7 @@ const Orders: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedUser, setSelectedUser] = useState('All');
   const [selectedLocation, setSelectedLocation] = useState('All');
+  const [selectedStatus, setSelectedStatus] = useState('All');
   const [expandedLocations, setExpandedLocations] = useState<Set<string>>(new Set());
   const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set());
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
@@ -37,8 +38,10 @@ const Orders: React.FC = () => {
   
   const [isUserDropdownOpen, setUserDropdownOpen] = useState(false);
   const [isLocationDropdownOpen, setLocationDropdownOpen] = useState(false);
+  const [isStatusDropdownOpen, setStatusDropdownOpen] = useState(false);
   const userDropdownRef = useRef<HTMLDivElement>(null);
   const locationDropdownRef = useRef<HTMLDivElement>(null);
+  const statusDropdownRef = useRef<HTMLDivElement>(null);
 
   // State for editing modal
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -58,6 +61,21 @@ const Orders: React.FC = () => {
   const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set());
   const [isBulkSubmitting, setIsBulkSubmitting] = useState(false);
   const [shareStatus, setShareStatus] = useState('');
+
+  const uniqueStatuses = useMemo(() => {
+    const statuses = new Set<string>();
+    orders.forEach(order => statuses.add(order.status || 'Pending'));
+    const preferredOrder = ['Pending', 'Pickup', 'Partial', 'Out of Stock', 'Delivered'];
+    const sortedStatuses = Array.from(statuses).sort((a, b) => {
+        const indexA = preferredOrder.indexOf(a);
+        const indexB = preferredOrder.indexOf(b);
+        if (indexA === -1 && indexB === -1) return a.localeCompare(b);
+        if (indexA === -1) return 1;
+        if (indexB === -1) return -1;
+        return indexA - indexB;
+    });
+    return ['All', ...sortedStatuses];
+  }, [orders]);
 
 
   useEffect(() => {
@@ -89,6 +107,9 @@ const Orders: React.FC = () => {
         if (locationDropdownRef.current && !locationDropdownRef.current.contains(event.target as Node)) {
             setLocationDropdownOpen(false);
         }
+        if (statusDropdownRef.current && !statusDropdownRef.current.contains(event.target as Node)) {
+            setStatusDropdownOpen(false);
+        }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -99,8 +120,9 @@ const Orders: React.FC = () => {
       const dateMatch = !selectedDate || formatDateToYMD(order.timestamp) === selectedDate;
       const userMatch = selectedUser === 'All' || (order.userName || '').trim() === selectedUser.trim();
       const locationMatch = selectedLocation === 'All' || order.location === selectedLocation;
+      const statusMatch = selectedStatus === 'All' || (order.status || 'Pending') === selectedStatus;
       
-      return dateMatch && userMatch && locationMatch;
+      return dateMatch && userMatch && locationMatch && statusMatch;
     });
 
     const grouped: Record<string, Record<string, LocationOrder[]>> = {};
@@ -133,7 +155,7 @@ const Orders: React.FC = () => {
         {} as Record<string, Record<string, LocationOrder[]>>
     );
 
-  }, [orders, selectedDate, selectedUser, selectedLocation]);
+  }, [orders, selectedDate, selectedUser, selectedLocation, selectedStatus]);
   
   // Auto-expand all location and date groups by default
   useEffect(() => {
@@ -188,6 +210,7 @@ const Orders: React.FC = () => {
     setSelectedDate('');
     setSelectedUser('All');
     setSelectedLocation('All');
+    setSelectedStatus('All');
   };
 
   const handleOpenEditModal = (order: LocationOrder) => {
@@ -422,13 +445,13 @@ const Orders: React.FC = () => {
             <DatePicker label="Filter by Date" value={selectedDate} onChange={setSelectedDate} />
         </div>
 
-        <details className="group">
+        <details className="group" open>
             <summary className="list-none cursor-pointer inline-flex items-center p-2 rounded-md hover:bg-gray-100 text-sm font-medium text-gray-700">
                 <span>More Filters</span>
                 <ChevronDownIcon className="ml-1 h-5 w-5 transition-transform duration-200 group-open:rotate-180" />
             </summary>
 
-            <div className="mt-4 pt-4 border-t grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+            <div className="mt-4 pt-4 border-t grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                 {/* User Filter Dropdown */}
                 <div>
                     <label className="block text-sm font-medium text-gray-700">User</label>
@@ -469,6 +492,28 @@ const Orders: React.FC = () => {
                                     <button onClick={() => { setSelectedLocation('All'); setLocationDropdownOpen(false); }} className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">All Locations</button>
                                     {locations.map(loc => (
                                         <button key={loc.id} onClick={() => { setSelectedLocation(loc.name); setLocationDropdownOpen(false); }} className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">{loc.name}</button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+                {/* Status Filter Dropdown */}
+                <div>
+                    <label className="block text-sm font-medium text-gray-700">Status</label>
+                    <div className="relative mt-1" ref={statusDropdownRef}>
+                        <button
+                            onClick={() => setStatusDropdownOpen(!isStatusDropdownOpen)}
+                            className="inline-flex justify-between w-full rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                        >
+                            <span>{selectedStatus === 'All' ? 'All Statuses' : selectedStatus}</span>
+                            <ChevronDownIcon className="-mr-1 ml-2 h-5 w-5" />
+                        </button>
+                        {isStatusDropdownOpen && (
+                            <div className="origin-top-right absolute right-0 mt-2 w-full rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-10 max-h-60 overflow-y-auto">
+                                <div className="py-1" role="menu" aria-orientation="vertical">
+                                    {uniqueStatuses.map(status => (
+                                        <button key={status} onClick={() => { setSelectedStatus(status); setStatusDropdownOpen(false); }} className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">{status === 'All' ? 'All Statuses' : status}</button>
                                     ))}
                                 </div>
                             </div>
