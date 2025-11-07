@@ -206,18 +206,16 @@ export const getLocations = async (): Promise<Location[]> => {
   const colMap = {
     id: headers.indexOf('LocationID'),
     name: headers.indexOf('Location Name'),
-    locationFullName: headers.indexOf('LocationFullName')
   };
 
-  if (colMap.id === -1 || colMap.name === -1 || colMap.locationFullName === -1) {
-    console.error("One or more required columns are missing in the 'Locations' sheet: 'LocationID', 'Location Name', 'LocationFullName'");
+  if (colMap.id === -1 || colMap.name === -1) {
+    console.error("One or more required columns are missing in the 'Locations' sheet: 'LocationID', 'Location Name'");
     return [];
   }
 
   return rows.map(row => ({
     id: safeParseString(row[colMap.id]),
     name: safeParseString(row[colMap.name]),
-    locationFullName: safeParseString(row[colMap.locationFullName]),
   })).filter(l => l.id);
 };
 
@@ -303,8 +301,8 @@ export const getLocationOrders = async (): Promise<LocationOrder[]> => {
         createdBy: safeParseString(row[6]),
         timestamp: safeParseString(row[7]),
         userName: safeParseString(row[8]),
-        status: (safeParseString(row[9]) as any) || 'Pending',
-        officeNotes: safeParseString(row[10]),
+        officeNotes: safeParseString(row[9]),
+        status: (safeParseString(row[10]) as any) || 'Pending',
     })).filter(o => o.orderID);
 };
 

@@ -10,8 +10,7 @@ const Locations: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingLocation, setEditingLocation] = useState<Location | null>(null);
-  const [locationName, setLocationName] = useState('');
-  const [locationFullName, setLocationFullName] = useState('');
+  const [name, setName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -34,24 +33,21 @@ const Locations: React.FC = () => {
 
   const openModalForAdd = () => {
     setEditingLocation(null);
-    setLocationName('');
-    setLocationFullName('');
+    setName('');
     setError(null);
     setIsModalOpen(true);
   };
 
   const openModalForEdit = (location: Location) => {
     setEditingLocation(location);
-    setLocationName(location.name);
-    setLocationFullName(location.locationFullName);
+    setName(location.name);
     setError(null);
     setIsModalOpen(true);
   };
   
   const openModalForDuplicate = (location: Location) => {
     setEditingLocation(null); // This makes it an "add" operation
-    setLocationName(`${location.name} (Copy)`);
-    setLocationFullName(location.locationFullName);
+    setName(`${location.name} (Copy)`);
     setError(null);
     setIsModalOpen(true);
   };
@@ -59,20 +55,19 @@ const Locations: React.FC = () => {
   const closeModal = () => {
     setIsModalOpen(false);
     setEditingLocation(null);
-    setLocationName('');
-    setLocationFullName('');
+    setName('');
   };
 
   const handleSave = async () => {
-    if (!locationName.trim()) {
+    if (!name.trim()) {
       setError('Location name cannot be empty.');
       return;
     }
     setIsSubmitting(true);
     setError(null);
     const result = editingLocation
-      ? await updateLocation({ ...editingLocation, name: locationName, locationFullName })
-      : await addLocation({ name: locationName, locationFullName });
+      ? await updateLocation({ ...editingLocation, name })
+      : await addLocation({ name });
     setIsSubmitting(false);
     if (result.success) {
       closeModal();
@@ -116,7 +111,7 @@ const Locations: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
             <h2 className="text-3xl font-bold text-gray-900">Manage Locations</h2>
-            <p className="mt-1 text-gray-600">View, create, and manage your business locations and addresses.</p>
+            <p className="mt-1 text-gray-600">View, create, and manage your business locations.</p>
         </div>
         <button
           onClick={openModalForAdd}
@@ -133,8 +128,7 @@ const Locations: React.FC = () => {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Full Name / Address</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location Name</th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location ID</th>
                 <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
@@ -143,7 +137,6 @@ const Locations: React.FC = () => {
               {locations.map((location) => (
                 <tr key={location.id} className="odd:bg-white even:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{location.name}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{location.locationFullName}</td>
                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">{location.id}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-right space-x-2">
                     <button onClick={() => openModalForEdit(location)} className="text-indigo-600 hover:text-indigo-900 p-1 rounded-md hover:bg-indigo-100" disabled={isSubmitting}>
@@ -168,7 +161,7 @@ const Locations: React.FC = () => {
             {locations.map(location => (
                 <div key={location.id} className="bg-white rounded-lg shadow-md p-4 space-y-3">
                     <div className="flex justify-between items-start">
-                        <h3 className="font-bold text-lg text-gray-800">{location.name}</h3>
+                        <h3 className="font-bold text-lg text-gray-800 flex-1 pr-2">{location.name}</h3>
                         <div className="flex items-center space-x-1 flex-shrink-0">
                             <button onClick={() => openModalForEdit(location)} className="p-2 text-indigo-600 hover:bg-indigo-100 rounded-full" disabled={isSubmitting}><PencilIcon className="h-5 w-5" /></button>
                             <button onClick={() => openModalForDuplicate(location)} className="p-2 text-green-600 hover:bg-green-100 rounded-full" disabled={isSubmitting}><DuplicateIcon className="h-5 w-5" /></button>
@@ -176,9 +169,7 @@ const Locations: React.FC = () => {
                         </div>
                     </div>
                     <div className="text-sm text-gray-600 border-t pt-3">
-                        <p className="font-medium text-gray-500">Address / Full Name:</p>
-                        <p>{location.locationFullName || 'Not specified'}</p>
-                        <p className="mt-2 font-medium text-gray-500">ID: <span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded">{location.id}</span></p>
+                        <p className="font-medium text-gray-500">ID: <span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded">{location.id}</span></p>
                     </div>
                 </div>
             ))}
@@ -187,28 +178,17 @@ const Locations: React.FC = () => {
       <Modal isOpen={isModalOpen} onClose={closeModal} title={editingLocation ? 'Edit Location' : 'Add New Location'}>
         <div className="space-y-4">
           <div>
-            <label htmlFor="location-name" className="block text-sm font-medium text-gray-700">Location Name (Short)</label>
+            <label htmlFor="location-name" className="block text-sm font-medium text-gray-700">Location Name</label>
             <input
               type="text"
               id="location-name"
-              value={locationName}
-              onChange={(e) => setLocationName(e.target.value)}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
               className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
               placeholder="e.g., Downtown Store"
               disabled={isSubmitting}
             />
-          </div>
-          <div>
-            <label htmlFor="location-full-name" className="block text-sm font-medium text-gray-700">Location Full Name / Address</label>
-            <input
-              type="text"
-              id="location-full-name"
-              value={locationFullName}
-              onChange={(e) => setLocationFullName(e.target.value)}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm disabled:bg-gray-100 disabled:text-gray-500"
-              placeholder="e.g., 123 Main St, Anytown, USA"
-              disabled={isSubmitting || !!editingLocation}
-            />
+             <p className="mt-1 text-xs text-gray-500">This name is used for assignments and filtering in other parts of the app.</p>
           </div>
           {error && <p className="text-sm text-red-600">{error}</p>}
           <div className="flex justify-end space-x-2">

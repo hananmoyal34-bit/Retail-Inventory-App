@@ -53,7 +53,6 @@ export interface User {
 export interface Location {
   id: string;
   name: string;
-  locationFullName: string;
 }
 
 export interface CountEntry {
@@ -139,7 +138,7 @@ export interface LocationOrder {
   createdBy: string;
   timestamp: string;
   userName: string;
-  status: 'Pending' | 'Pickup' | 'Delivered' | 'Partial' | string;
+  status: 'Pending' | 'Pickup' | 'Delivered' | 'Partial' | 'Out of Stock' | string;
   officeNotes: string;
 }
 

@@ -13,6 +13,7 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
         'Pending': 'bg-yellow-100 text-yellow-800',
         'Pickup': 'bg-blue-100 text-blue-800',
         'Partial': 'bg-orange-100 text-orange-800',
+        'Out of Stock': 'bg-red-100 text-red-800',
     };
     const style = statusStyles[status] || 'bg-gray-100 text-gray-800';
     return <span className={`px-3 py-1.5 text-sm leading-5 font-semibold rounded-full ${style}`}>{status || 'Pending'}</span>;
@@ -652,6 +653,7 @@ const Orders: React.FC = () => {
                 <option>Pending</option>
                 <option>Pickup</option>
                 <option>Partial</option>
+                <option>Out of Stock</option>
               </select>
             </div>
              {newStatus === 'Partial' && (

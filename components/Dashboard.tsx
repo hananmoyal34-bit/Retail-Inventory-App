@@ -1,5 +1,6 @@
 
 
+
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { Page, Product, InventoryLog, User, LocationOrder, CountLog, WarehouseCountLog, AppSheetProduct, Location } from '../types';
 import { getProducts, getInventoryLogs, getUsers, getLocationOrders, formatDateToYMD, getCountLogs, getWarehouseCountLogs, getAppSheetProducts, getLocations, getCurrentDateInTimezone, formatToLocaleString } from '../services/dataService';
@@ -482,7 +483,6 @@ const Dashboard: React.FC<DashboardProps> = ({ setActivePage }) => {
                 </div>
 
                 <div className="space-y-3">
-                    {/* FIX: Add explicit type casting for Object.entries to resolve 'unknown' type errors in TypeScript. */}
                     {Object.keys(groupedTransactionLogs).length > 0 ? (Object.entries(groupedTransactionLogs) as [string, InventoryLog[]][]).map(([productName, logs]) => (
                         <details key={productName} open={expandedTransactionProducts.has(productName)} className="bg-white/80 shadow rounded-lg transition-all duration-300 group">
                             <summary className="px-4 py-3 text-lg font-semibold text-gray-800 cursor-pointer list-none flex justify-between items-center hover:bg-white rounded-t-lg" onClick={(e) => handleToggleTransactionProduct(e, productName)}>

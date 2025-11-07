@@ -99,7 +99,7 @@ const manageLocation = async (action: 'addLocation' | 'updateLocation' | 'delete
   return postToAppsScript(payload);
 };
 
-export const addLocation = async (location: { name: string, locationFullName: string }): Promise<{ success: boolean; message: string }> => {
+export const addLocation = async (location: { name: string }): Promise<{ success: boolean; message: string }> => {
   return manageLocation('addLocation', location);
 };
 

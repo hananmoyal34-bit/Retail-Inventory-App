@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { ShippingData, Location, User } from '../types';
 import { getShippingData, formatToLocaleString } from '../services/dataService';
@@ -16,22 +15,9 @@ const Shipping: React.FC<ShippingProps> = ({ currentUser, allLocations }) => {
     const [selectedLocationFilter, setSelectedLocationFilter] = useState('All');
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
-    const userLocationShortNames = useMemo(() => {
+    const userAssignedLocations = useMemo(() => {
         return currentUser.location ? currentUser.location.split(',').map(l => l.trim()).filter(Boolean) : [];
     }, [currentUser.location]);
-    
-    const userLocationFullNames = useMemo(() => {
-        const fullNames = new Set<string>();
-        const userLocationsMap = new Map(allLocations.map(l => [l.name, l.locationFullName]));
-        userLocationShortNames.forEach(shortName => {
-            const fullName = userLocationsMap.get(shortName);
-            // FIX: Using a more explicit type guard to ensure `fullName` is a string, resolving potential linter issues.
-            if (typeof fullName === 'string') {
-                fullNames.add(fullName);
-            }
-        });
-        return Array.from(fullNames);
-    }, [userLocationShortNames, allLocations]);
     
     useEffect(() => {
         const fetchData = async () => {
@@ -39,7 +25,7 @@ const Shipping: React.FC<ShippingProps> = ({ currentUser, allLocations }) => {
             try {
                 const data = await getShippingData();
                 // Filter data to only include shipments for the user's locations
-                const userSpecificData = data.filter((shipment: ShippingData) => userLocationFullNames.includes(shipment.storeName));
+                const userSpecificData = data.filter((shipment: ShippingData) => userAssignedLocations.includes(shipment.storeName));
                 setShippingData(userSpecificData);
             } catch (error) {
                 console.error("Failed to fetch shipping data", error);
@@ -48,7 +34,7 @@ const Shipping: React.FC<ShippingProps> = ({ currentUser, allLocations }) => {
             }
         };
         fetchData();
-    }, [userLocationFullNames]);
+    }, [userAssignedLocations]);
     
     const filteredAndSortedData = useMemo(() => {
         let data = [...shippingData];
@@ -93,7 +79,7 @@ const Shipping: React.FC<ShippingProps> = ({ currentUser, allLocations }) => {
                         className="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                     >
                         <option value="All">All My Stores</option>
-                        {userLocationFullNames.map(name => <option key={name} value={name}>{name}</option>)}
+                        {userAssignedLocations.map(name => <option key={name} value={name}>{name}</option>)}
                     </select>
                 </div>
                  <div className="md:hidden">

@@ -417,8 +417,8 @@ function handleSubmitOrder(payload) {
         userId,             // G: createdBy (User ID)
         date,               // H: timestamp
         userName,           // I: userName
-        'Pending',          // J: Status
-        ''                  // K: Office Notes
+        '',                 // J: Office Notes
+        'Pending'           // K: Status
       ];
       orderRows.push(newRow);
     });
@@ -443,7 +443,7 @@ function handleUpdateOrder(payload) {
   if (!rowInfo) throw new Error(`Order ID ${orderID} not found.`);
 
   const statusCol = rowInfo.headers.indexOf('Status');
-  if (statusCol !== -1 && rowInfo.rowData[statusCol] !== 'Pending') {
+  if (statusCol !== -1 && (String(rowInfo.rowData[statusCol] || '')).trim() !== 'Pending') {
     throw new Error('This order has been processed by logistics and can no longer be edited.');
   }
 
@@ -571,7 +571,7 @@ function handleDeleteOrder(payload) {
   if (!rowInfo) throw new Error("Order ID not found for deletion: " + orderID);
 
   const statusCol = rowInfo.headers.indexOf('Status');
-  if (statusCol !== -1 && rowInfo.rowData[statusCol] !== 'Pending') {
+  if (statusCol !== -1 && (String(rowInfo.rowData[statusCol] || '')).trim() !== 'Pending') {
     throw new Error('This order has been processed by logistics and can no longer be deleted.');
   }
   
@@ -586,8 +586,8 @@ function handleDeleteOrder(payload) {
 function handleAddLocation(payload) {
   const sheet = getSheet(SHEET_NAMES.locations);
   const newId = generateUniqueId();
-  // New Order: LocationID, LocationFullName, Location Name
-  sheet.appendRow([newId, payload.locationFullName || '', payload.name]); 
+  // New Order: LocationID, Location Name
+  sheet.appendRow([newId, payload.name]); 
   return { status: 'success', message: 'Location added successfully.' };
 }
 
@@ -598,9 +598,7 @@ function handleUpdateLocation(payload) {
   if (rowInfo) {
     const h = rowInfo.headers;
     const nameCol = h.indexOf('Location Name');
-    const fullNameCol = h.indexOf('LocationFullName');
     if (nameCol !== -1) sheet.getRange(rowInfo.rowIndex, nameCol + 1).setValue(payload.name);
-    if (fullNameCol !== -1) sheet.getRange(rowInfo.rowIndex, fullNameCol + 1).setValue(payload.locationFullName || '');
     return { status: 'success', message: 'Location updated successfully.' };
   }
   throw new Error(`Location ID not found for update: ${payload.id}`);

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { User, Product, OrderItem, OrderPayload, Location, LocationOrder, AppSheetProduct, UpdateOrderPayload } from '../types';
 import { getUsers, getProducts, getLocations, getLocationOrders, formatToLocaleString, getAppSheetProducts, formatDateToYMD } from '../services/dataService';
@@ -14,6 +15,19 @@ interface ManagerPortalProps {
     user: User;
     onLogout: () => void;
 }
+
+const SmallStatusBadge: React.FC<{ status: string }> = ({ status }) => {
+    const statusStyles: Record<string, string> = {
+        'Pending': 'bg-yellow-100 text-yellow-800',
+        'Pickup': 'bg-blue-100 text-blue-800',
+        'Partial': 'bg-orange-100 text-orange-800',
+        'Delivered': 'bg-green-100 text-green-800',
+        'Out of Stock': 'bg-red-100 text-red-800',
+    };
+    const style = statusStyles[status] || 'bg-gray-100 text-gray-800';
+    return <span className={`px-2 py-1 text-xs font-semibold rounded-full ${style}`}>{status || 'Pending'}</span>;
+};
+
 
 const ManagerPortal: React.FC<ManagerPortalProps> = ({ user, onLogout }) => {
     const [isLoading, setIsLoading] = useState(true);
@@ -55,6 +69,7 @@ const ManagerPortal: React.FC<ManagerPortalProps> = ({ user, onLogout }) => {
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [editingOrder, setEditingOrder] = useState<LocationOrder | null>(null);
     const [editFormState, setEditFormState] = useState<UpdateOrderPayload | null>(null);
+    const [editModalError, setEditModalError] = useState<string | null>(null);
 
     const fetchAllData = async () => {
         setIsLoading(true);
@@ -349,6 +364,7 @@ const ManagerPortal: React.FC<ManagerPortalProps> = ({ user, onLogout }) => {
             quantity: order.quantity,
             notes: order.notes,
         });
+        setEditModalError(null);
         setIsEditModalOpen(true);
     };
 
@@ -360,13 +376,14 @@ const ManagerPortal: React.FC<ManagerPortalProps> = ({ user, onLogout }) => {
     const handleUpdateOrder = async () => {
         if (!editFormState) return;
         setIsSubmitting(true);
+        setEditModalError(null);
         const result = await updateOrder(editFormState);
         if (result.success) {
             showSuccessMessage('Order updated successfully!');
             await fetchAllData();
             setIsEditModalOpen(false);
         } else {
-            alert(`Error: ${result.message}`);
+            setEditModalError(result.message);
         }
         setIsSubmitting(false);
     };
@@ -662,7 +679,7 @@ const ManagerPortal: React.FC<ManagerPortalProps> = ({ user, onLogout }) => {
                                                         <h4 className="font-semibold text-gray-700 text-md mb-3 -ml-2 sm:-ml-4 pl-3 bg-gray-200/50 py-1 rounded-r-md">{formattedDate}</h4>
                                                         <div className="space-y-3">
                                                             {ordersForDay.map(order => {
-                                                                const isLocked = order.status !== 'Pending';
+                                                                const isLocked = (order.status || '').trim() !== 'Pending';
                                                                 const disabledButtonClasses = "text-gray-300 cursor-not-allowed";
                                                                 const enabledButtonClasses = "text-indigo-600 hover:text-indigo-900";
                                                                 const enabledDeleteClasses = "text-red-600 hover:text-red-900";
@@ -678,7 +695,7 @@ const ManagerPortal: React.FC<ManagerPortalProps> = ({ user, onLogout }) => {
                                                                                 </p>
                                                                             </div>
                                                                             <div className="flex items-center gap-2">
-                                                                                <span className="text-xs font-semibold px-2 py-1 rounded-full bg-yellow-100 text-yellow-800">{order.status}</span>
+                                                                                <SmallStatusBadge status={order.status} />
                                                                                 <div className="flex items-center">
                                                                                     <Tooltip text={isLocked ? "Order processed by logistics. Cannot edit." : "Edit Order"}>
                                                                                         <button onClick={() => openEditModal(order)} disabled={isLocked} className={`p-1 rounded-md ${isLocked ? disabledButtonClasses : enabledButtonClasses}`}>
@@ -747,7 +764,7 @@ const ManagerPortal: React.FC<ManagerPortalProps> = ({ user, onLogout }) => {
                             <>
                                 <div>
                                     <label className="text-sm font-medium text-gray-700">1. Select a Color</label>
-                                    <div className="flex flex-wrap gap-2 mt-1">
+                                    <div className="flex flex-wrap gap-2 mt-1 p-2 border rounded-md max-h-48 overflow-y-auto bg-gray-50">
                                         {selectedAppSheetProduct.colors.map(color => (
                                             <button key={color} onClick={() => handleSetActiveColor(color)}
                                                 className={`px-3 py-1.5 text-sm font-medium rounded-full border transition-colors ${activeColor === color ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'} ${stagedItemsForProduct.some(item => item.color === color) ? 'opacity-50 cursor-not-allowed' : ''}`}
@@ -862,6 +879,7 @@ const ManagerPortal: React.FC<ManagerPortalProps> = ({ user, onLogout }) => {
                             <label className="block text-sm font-medium text-gray-700">Notes</label>
                             <textarea value={editFormState.notes} onChange={e => setEditFormState(p => p ? {...p, notes: e.target.value} : null)} className="mt-1 block w-full p-2 border border-gray-300 rounded-md" rows={3}/>
                         </div>
+                        {editModalError && <p className="text-sm text-red-600 bg-red-50 p-3 rounded-md">{editModalError}</p>}
                         <div className="flex justify-end gap-2 pt-4">
                             <button onClick={() => setIsEditModalOpen(false)} className="px-4 py-2 bg-gray-200 rounded-md">Cancel</button>
                             <button onClick={handleUpdateOrder} disabled={isSubmitting} className="px-4 py-2 bg-indigo-600 text-white rounded-md disabled:bg-indigo-300">

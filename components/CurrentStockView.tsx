@@ -13,6 +13,15 @@ interface DailySummaryData {
 
 const LOW_STOCK_THRESHOLD = 10;
 
+// FIX: Define a specific type for warehouse stock products to ensure type safety.
+type WarehouseStockProduct = {
+    productName: string;
+    category: string;
+    totalStock: number;
+    colors: { color: string; quantity: number }[];
+};
+
+
 const CurrentStockView: React.FC = () => {
   const [inventoryLogs, setInventoryLogs] = useState<InventoryLog[]>([]);
   const [countLogs, setCountLogs] = useState<CountLog[]>([]);
@@ -154,7 +163,7 @@ const CurrentStockView: React.FC = () => {
             }
         });
 
-        const productsWithCategory = Array.from(stockMap.entries())
+        const productsWithCategory: WarehouseStockProduct[] = Array.from(stockMap.entries())
             .map(([productName, data]) => {
                 data.colors.sort((a, b) => a.color.localeCompare(b.color));
                 return { 
@@ -164,6 +173,7 @@ const CurrentStockView: React.FC = () => {
                 };
             });
 
+        // FIX: Explicitly type the accumulator to ensure correct type inference downstream.
         const groupedByCategory = productsWithCategory.reduce((acc, product) => {
             const category = product.category;
             if (!acc[category]) {
@@ -172,14 +182,15 @@ const CurrentStockView: React.FC = () => {
             acc[category].push(product);
             acc[category].sort((a, b) => a.productName.localeCompare(b.productName));
             return acc;
-        }, {} as Record<string, typeof productsWithCategory>);
+        }, {} as Record<string, WarehouseStockProduct[]>);
         
+        // FIX: Explicitly type the accumulator to ensure correct type inference downstream.
         return Object.keys(groupedByCategory).sort().reduce(
           (obj, key) => { 
             obj[key] = groupedByCategory[key]; 
             return obj;
           }, 
-          {} as typeof groupedByCategory
+          {} as Record<string, WarehouseStockProduct[]>
         );
 
     }, [warehouseCountLogs, appSheetProducts]);
@@ -320,7 +331,7 @@ const CurrentStockView: React.FC = () => {
     {activeTab === 'warehouse' && (
         <div className="space-y-4 pt-4">
             {/* FIX: Add explicit type casting for Object.entries to resolve 'unknown' type errors in TypeScript. */}
-            {Object.keys(warehouseStock).length > 0 ? (Object.entries(warehouseStock) as [string, { productName: string; totalStock: number; colors: { color: string; quantity: number; }[] }[]][]).map(([category, products]) => (
+            {Object.keys(warehouseStock).length > 0 ? (Object.entries(warehouseStock) as [string, WarehouseStockProduct[]][]).map(([category, products]) => (
             <details key={category} className="bg-white shadow-md rounded-xl overflow-hidden group transition-all duration-300">
                 <summary className="px-6 py-4 text-xl font-bold text-gray-800 cursor-pointer list-none flex justify-between items-center bg-gray-100 hover:bg-gray-200 transition-colors">
                     <span>{category}</span>
@@ -332,7 +343,7 @@ const CurrentStockView: React.FC = () => {
                 </summary>
                 <div className="p-2 space-y-2 bg-gray-50">
                     {/* FIX: Add specific type for destructured product to resolve 'unknown' type errors. */}
-                    {products.map(({ productName, totalStock, colors }: { productName: string, totalStock: number, colors: { color: string, quantity: number }[] }) => (
+                    {products.map(({ productName, totalStock, colors }: WarehouseStockProduct) => (
                         <details key={productName} className="bg-white shadow-lg rounded-xl overflow-hidden group/product transition-all duration-300">
                             <summary className="px-6 py-4 text-lg font-semibold text-gray-800 cursor-pointer list-none flex justify-between items-center hover:bg-gray-50 transition-colors">
                                 <div className="flex items-center gap-4">
