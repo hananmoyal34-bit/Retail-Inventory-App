@@ -30,7 +30,7 @@ const Orders: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedUser, setSelectedUser] = useState('All');
   const [selectedLocation, setSelectedLocation] = useState('All');
-  const [selectedStatus, setSelectedStatus] = useState('All');
+  const [selectedStatus, setSelectedStatus] = useState('Pending');
   const [expandedLocations, setExpandedLocations] = useState<Set<string>>(new Set());
   const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set());
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
@@ -156,22 +156,6 @@ const Orders: React.FC = () => {
     );
 
   }, [orders, selectedDate, selectedUser, selectedLocation, selectedStatus]);
-  
-  // Auto-expand all location and date groups by default
-  useEffect(() => {
-    const allLocationKeys = new Set<string>();
-    const allDateKeys = new Set<string>();
-    
-    Object.entries(groupedAndFilteredOrders).forEach(([location, ordersByDate]) => {
-      allLocationKeys.add(location);
-      Object.keys(ordersByDate).forEach(date => {
-        allDateKeys.add(`${location}-${date}`);
-      });
-    });
-
-    setExpandedLocations(allLocationKeys);
-    setExpandedDates(allDateKeys);
-  }, [groupedAndFilteredOrders]);
 
   const handleToggleLocation = (location: string, isOpen: boolean) => {
     setExpandedLocations(prev => {
