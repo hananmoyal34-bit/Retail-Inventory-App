@@ -25,31 +25,48 @@ export interface SubmitCountPayload {
 
 /**
  * Centralized function to handle all POST requests to the Apps Script.
- * Includes more robust error handling to help diagnose issues.
+ * Automatically injects the session token and handles authorization errors.
  */
-const postToAppsScript = async (payload: object): Promise<{ success: boolean; message: string; data?: any }> => {
+const postToAppsScript = async (payload: { action: string, [key: string]: any }): Promise<{ success: boolean; message: string; data?: any }> => {
     try {
+        const token = sessionStorage.getItem('inventory_system_token');
+        const fullPayload: any = { ...payload };
+
+        if (payload.action !== 'login' && payload.action !== 'verifySession') {
+            if (!token) {
+                 // If no token, force a reload to go back to the login screen.
+                window.location.reload();
+                throw new Error("Authorization failed: No session token found.");
+            }
+            fullPayload.token = token;
+        }
+
         const response = await fetch(APPS_SCRIPT_URL, {
             method: 'POST',
             mode: 'cors',
             redirect: 'follow',
-            body: JSON.stringify(payload),
+            body: JSON.stringify(fullPayload),
             headers: {
                 "Content-Type": "text/plain;charset=utf-8",
             },
         });
 
-        // Check for non-JSON responses which can happen with script errors or incorrect URLs
         const contentType = response.headers.get("content-type");
         if (!response.ok || !contentType || !contentType.includes("application/json")) {
             const text = await response.text();
-            // Try to find a title in an HTML error page for a more helpful message
             const titleMatch = text.match(/<title>(.*?)<\/title>/);
             const detail = titleMatch ? titleMatch[1] : text.slice(0, 100);
             throw new Error(`Server returned a non-JSON response. Status: ${response.status}. Detail: ${detail}`);
         }
         
         const result = await response.json();
+
+        // Handle authorization errors specifically by logging the user out.
+        if (result.status === 'error' && (result.message.includes('Authorization failed') || result.message.includes('Invalid token'))) {
+            sessionStorage.removeItem('inventory_system_token');
+            window.location.reload(); 
+            throw new Error(result.message);
+        }
 
         if (result.status !== 'success') {
             throw new Error(result.message || 'An unknown error occurred in the Apps Script.');
@@ -60,10 +77,33 @@ const postToAppsScript = async (payload: object): Promise<{ success: boolean; me
     } catch (error) {
         console.error('Error posting to Apps Script:', error);
         const message = error instanceof Error ? error.message : 'Failed to submit. Check network connection or script configuration.';
-        return { success: false, message, data: null };
+        // Don't return success:false here, let the error propagate to be caught by the caller.
+        throw new Error(message);
     }
 };
 
+// --- Auth Functions ---
+
+export const login = async (accessCode: string, role: string): Promise<{ success: boolean; token?: string; message: string }> => {
+    try {
+        const result = await postToAppsScript({ action: 'login', accessCode, role });
+        return { success: true, token: result.data.token, message: 'Login successful' };
+    } catch(error) {
+        return { success: false, message: error instanceof Error ? error.message : 'Login failed' };
+    }
+};
+
+export const verifySession = async (token: string): Promise<{ success: boolean; user?: User; message: string }> => {
+    try {
+         const result = await postToAppsScript({ action: 'verifySession', token });
+         return { success: true, user: result.data.user, message: 'Session verified' };
+    } catch(error) {
+        return { success: false, message: error instanceof Error ? error.message : 'Session invalid' };
+    }
+};
+
+
+// --- Data Write/Read Functions ---
 
 export const submitInventoryCount = async (payload: SubmitCountPayload): Promise<{ success: boolean; message: string }> => {
   const scriptPayload = {
@@ -159,10 +199,8 @@ export const fetchProductCategories = async (): Promise<ProductCategory[]> => {
 export const fetchAppSheetProducts = async (): Promise<AppSheetProduct[]> => {
   const result = await postToAppsScript({ action: 'getAppSheetProducts' });
   if (result.success && Array.isArray(result.data)) {
-    // The Apps Script will return an array of objects that match AppSheetProduct
     return result.data.map((p: any) => ({
       ...p,
-      // Ensure lowStockThreshold is a number, as it might come back as a string from JSON
       lowStockThreshold: Number(p.lowStockThreshold) || 10
     }));
   }
@@ -172,6 +210,13 @@ export const fetchAppSheetProducts = async (): Promise<AppSheetProduct[]> => {
 
 
 // --- User Management Functions ---
+export const getUsers = async (): Promise<User[]> => {
+  const result = await postToAppsScript({ action: 'getUsers' });
+  if(result.success && Array.isArray(result.data)) {
+    return result.data;
+  }
+  return [];
+};
 
 export const addUser = async (user: Omit<User, 'userID'>): Promise<{ success: boolean; message: string }> => {
   return postToAppsScript({ action: 'addUser', ...user });

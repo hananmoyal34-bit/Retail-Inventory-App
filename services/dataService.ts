@@ -1,6 +1,7 @@
 import { readSheet } from './googleSheetService';
 import { Product, User, Location, InventoryLog, LocationOrder, CountLog, ShippingData, AppSheetProduct, WarehouseCountLog, ProductCategory, DraftCount, Account, CustomerRecord, Task, Contact } from '../types';
-import { fetchProductCategories, fetchAppSheetProducts } from './writeService';
+// FIX: Import getUsers from writeService to re-export it from dataService for consistent API.
+import { fetchProductCategories, fetchAppSheetProducts, getUsers as fetchUsers } from './writeService';
 
 export let TIMEZONE = 'America/Los_Angeles'; // Default timezone, will be overwritten by config.
 
@@ -181,21 +182,6 @@ export const getProductCategories = async (): Promise<ProductCategory[]> => {
   return await fetchProductCategories();
 };
 
-export const getUsers = async (): Promise<User[]> => {
-  const data = await readSheet(SHEET_NAMES.users);
-  if (data.length <= 1) return [];
-  const rows = data.slice(1);
-  return rows.map(row => ({
-    userID: safeParseString(row[0]),
-    name: safeParseString(row[1]),
-    email: safeParseString(row[2]),
-    phone: safeParseString(row[3]),
-    accessCode: safeParseString(row[4]),
-    role: safeParseString(row[5]) as any,
-    location: safeParseString(row[6]),
-  })).filter(u => u.userID);
-};
-
 export const getLocations = async (): Promise<Location[]> => {
   const data = await readSheet(SHEET_NAMES.locations);
   if (data.length <= 1) return [];
@@ -357,6 +343,11 @@ export const getShippingData = async (): Promise<ShippingData[]> => {
             return false;
         }
     });
+};
+
+// FIX: Add getUsers function to resolve import errors in other components.
+export const getUsers = async (): Promise<User[]> => {
+  return fetchUsers();
 };
 
 const mapRowToHeaders = <T,>(row: string[], headers: string[]): T => {

@@ -4,7 +4,8 @@ import { User } from '../types';
 import { CogIcon, LocationMarkerIcon, ClipboardListIcon, DocumentTextIcon } from './icons';
 
 interface LandingPageProps {
-  onLogin: (user: User) => void;
+  // FIX: Changed onLogin prop to accept a token string, matching the implementation in App.tsx.
+  onLogin: (token: string) => void;
 }
 
 const PortalCard: React.FC<{

@@ -4,34 +4,58 @@ import AdminPortal from './components/AdminPortal';
 import ManagerPortal from './components/ManagerPortal';
 import LogisticsPortal from './components/OfficePortal';
 import { User } from './types';
+import { verifySession } from './services/writeService';
 
-const SESSION_STORAGE_KEY = 'inventory_system_user';
+const SESSION_TOKEN_KEY = 'inventory_system_token';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    try {
-      const savedUserJson = sessionStorage.getItem(SESSION_STORAGE_KEY);
-      if (savedUserJson) {
-        const savedUser: User = JSON.parse(savedUserJson);
-        setUser(savedUser);
+    const validateToken = async () => {
+      const token = sessionStorage.getItem(SESSION_TOKEN_KEY);
+      if (token) {
+        try {
+          const result = await verifySession(token);
+          if (result.success && result.user) {
+            setUser(result.user);
+          } else {
+            console.error("Session verification failed:", result.message);
+            sessionStorage.removeItem(SESSION_TOKEN_KEY);
+          }
+        } catch (error) {
+          console.error("Error during session verification:", error);
+          sessionStorage.removeItem(SESSION_TOKEN_KEY);
+        }
       }
-    } catch (error) {
-      console.error("Failed to parse user from session storage", error);
-      sessionStorage.removeItem(SESSION_STORAGE_KEY);
-    }
-    setIsLoading(false);
+      setIsLoading(false);
+    };
+    validateToken();
   }, []);
 
-  const handleLogin = (loggedInUser: User) => {
-    sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(loggedInUser));
-    setUser(loggedInUser);
+  const handleLogin = async (token: string) => {
+    sessionStorage.setItem(SESSION_TOKEN_KEY, token);
+    setIsLoading(true);
+    try {
+      const result = await verifySession(token);
+      if (result.success && result.user) {
+        setUser(result.user);
+      } else {
+        console.error("Login verification failed immediately after login:", result.message);
+        // Clear the bad token just in case
+        sessionStorage.removeItem(SESSION_TOKEN_KEY);
+      }
+    } catch (error) {
+      console.error("Error during post-login session verification:", error);
+      sessionStorage.removeItem(SESSION_TOKEN_KEY);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleLogout = () => {
-    sessionStorage.removeItem(SESSION_STORAGE_KEY);
+    sessionStorage.removeItem(SESSION_TOKEN_KEY);
     setUser(null);
   };
 
@@ -47,6 +71,7 @@ const App: React.FC = () => {
   }
 
   if (!user) {
+    // FIX: The onLogin prop for LandingPage was expecting a User object, but the handleLogin function provides a token string. The prop type in LandingPage has been corrected.
     return <LandingPage onLogin={handleLogin} />;
   }
 
@@ -60,6 +85,7 @@ const App: React.FC = () => {
     default:
       // If user has an unknown role, log them out.
       handleLogout();
+      // FIX: The onLogin prop for LandingPage was expecting a User object, but the handleLogin function provides a token string. The prop type in LandingPage has been corrected.
       return <LandingPage onLogin={handleLogin} />;
   }
 };

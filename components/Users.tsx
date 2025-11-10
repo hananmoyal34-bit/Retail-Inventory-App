@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { User, Location } from '../types';
-import { getUsers, getLocations } from '../services/dataService';
+// FIX: Import getUsers from dataService for consistency
+import { getLocations, getUsers } from '../services/dataService';
 import { addUser, updateUser, deleteUser } from '../services/writeService';
 import LocationTag from './LocationTag';
 import Modal from './Modal';

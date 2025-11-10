@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { User } from '../types';
-import { getUsers } from '../services/dataService';
+import { login } from '../services/writeService';
 
 interface LoginProps {
   role: 'Admin' | 'Manager' | 'Logistics' | 'Accounting';
-  onLogin: (user: User) => void;
+  onLogin: (token: string) => void;
   onBack: () => void;
 }
 
@@ -15,21 +15,19 @@ const Login: React.FC<LoginProps> = ({ role, onLogin, onBack }) => {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!accessCode.trim()) {
+      setError('Access code cannot be empty.');
+      return;
+    }
     setError('');
     setIsLoading(true);
 
     try {
-      const users = await getUsers();
-      const foundUser = users.find(
-        (user) =>
-          user.accessCode.trim() === accessCode.trim() &&
-          user.role.trim() === role
-      );
-
-      if (foundUser) {
-        onLogin(foundUser);
+      const result = await login(accessCode, role);
+      if (result.success && result.token) {
+        onLogin(result.token);
       } else {
-        setError(`Invalid access code for the ${role} role. Please try again or contact an administrator.`);
+        setError(result.message || `Invalid access code for the ${role} role. Please try again.`);
       }
     } catch (err) {
       console.error("Login failed:", err);
