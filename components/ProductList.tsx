@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { AppSheetProduct, ProductCategory, Product } from '../types';
 import { getAppSheetProducts, getProductCategories, getProducts } from '../services/dataService';
-import { updateAppSheetProduct, updateDailyCountStatus } from '../services/writeService';
+import { updateAppSheetProduct, updateDailyCountStatus, deleteAppSheetProduct } from '../services/writeService';
 import CategoryManager from './CategoryManager';
 import Modal from './Modal';
-import { PencilIcon, ChevronDownIcon, ViewGridIcon, TableCellsIcon, SearchIcon } from './icons';
+import { PencilIcon, ChevronDownIcon, ViewGridIcon, TableCellsIcon, SearchIcon, TrashIcon, LockClosedIcon, LockOpenIcon, XIcon } from './icons';
+import ConfirmationModal from './customer_service_hub/components/ConfirmationModal';
 
 type ViewMode = 'grouped' | 'table';
 type SortKey = keyof AppSheetProduct;
@@ -19,12 +20,11 @@ const ProductList: React.FC = () => {
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'asc' | 'desc' }>({ key: 'name', direction: 'asc' });
   const [searchQuery, setSearchQuery] = useState('');
 
-
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<AppSheetProduct | null>(null);
   const [formState, setFormState] = useState({
     name: '',
-    colors: '',
+    colors: [] as string[],
     category: '',
     subCategory: '',
     lowStockThreshold: 10,
@@ -32,11 +32,14 @@ const ProductList: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // State for collapsible sections
+  const [isNameColorEditable, setIsNameColorEditable] = useState(false);
+  const [colorInput, setColorInput] = useState('');
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [productToDelete, setProductToDelete] = useState<AppSheetProduct | null>(null);
+
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const [expandedSubCategories, setExpandedSubCategories] = useState<Set<string>>(new Set());
 
-  // State for daily count toggle
   const [updatingDailyCount, setUpdatingDailyCount] = useState<Set<string>>(new Set());
 
   const fetchData = useCallback(async () => {
@@ -148,12 +151,14 @@ const ProductList: React.FC = () => {
     setEditingProduct(product);
     setFormState({
       name: product.name,
-      colors: product.colors.join(', '),
+      colors: [...product.colors],
       category: product.category,
       subCategory: product.subCategory,
       lowStockThreshold: product.lowStockThreshold,
     });
     setError(null);
+    setIsNameColorEditable(false);
+    setColorInput('');
     setIsModalOpen(true);
   };
   
@@ -172,20 +177,42 @@ const ProductList: React.FC = () => {
     setFormState(prev => ({
         ...prev,
         category: newCategory,
-        subCategory: '', // Reset sub-category when category changes
+        subCategory: '',
     }));
   };
+
+  const handleColorInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === ',') {
+        e.preventDefault();
+        const newColor = colorInput.trim();
+        if (newColor && !formState.colors.map(c => c.toLowerCase()).includes(newColor.toLowerCase())) {
+            setFormState(prev => ({...prev, colors: [...prev.colors, newColor]}));
+        }
+        setColorInput('');
+    }
+  };
+
+  const removeColor = (colorToRemove: string) => {
+      setFormState(prev => ({...prev, colors: prev.colors.filter(c => c !== colorToRemove)}));
+  };
+
 
   const handleSave = async () => {
     if (!formState.name.trim()) {
       setError('Product name cannot be empty.');
       return;
     }
+    if (!editingProduct) {
+      setError('Error: No product selected for editing.');
+      return;
+    }
     setIsSubmitting(true);
     setError(null);
 
     const result = await updateAppSheetProduct({
+        oldName: editingProduct.name,
         name: formState.name,
+        colors: formState.colors.join(', '),
         category: formState.category.trim(),
         subCategory: formState.subCategory.trim(),
         lowStockThreshold: Number(formState.lowStockThreshold) || 0,
@@ -198,6 +225,28 @@ const ProductList: React.FC = () => {
     } else {
       setError(result.message);
     }
+  };
+  
+  const handleOpenDeleteModal = (product: AppSheetProduct) => {
+    setProductToDelete(product);
+    setIsDeleteModalOpen(true);
+  };
+  
+  const handleConfirmDelete = async () => {
+      if (!productToDelete) return;
+      setIsSubmitting(true);
+      setError(null);
+      const result = await deleteAppSheetProduct(productToDelete.name);
+      
+      if (result.success) {
+          setIsDeleteModalOpen(false);
+          setProductToDelete(null);
+          await fetchData();
+      } else {
+          setError(`Delete failed: ${result.message}`);
+          // Keep delete modal open to show error
+      }
+      setIsSubmitting(false);
   };
 
   const handleToggleDailyCount = async (productName: string, isOnDailyCount: boolean) => {
@@ -216,7 +265,6 @@ const ProductList: React.FC = () => {
         setDailyCountProducts(originalDailyCountProducts);
         setError('Failed to update daily count status. Please try again.');
     } else {
-        // Refetch on success to ensure data consistency
         const freshDailyCountProducts = await getProducts();
         setDailyCountProducts(freshDailyCountProducts);
     }
@@ -245,7 +293,6 @@ const ProductList: React.FC = () => {
     );
   };
 
-  // --- Expansion Handlers ---
   const handleToggleCategory = (e: React.MouseEvent, category: string) => {
     e.preventDefault();
     setExpandedCategories(prev => {
@@ -385,6 +432,7 @@ const ProductList: React.FC = () => {
                                                             <h3 className="font-bold text-gray-800 flex-1 pr-2">{product.name}</h3>
                                                             <div className="flex items-center space-x-1 flex-shrink-0">
                                                               <button onClick={() => openModalForEdit(product)} className="p-2 text-indigo-600 hover:bg-indigo-100 rounded-full"><PencilIcon className="h-5 w-5" /></button>
+                                                              <button onClick={() => handleOpenDeleteModal(product)} className="p-2 text-red-600 hover:bg-red-100 rounded-full"><TrashIcon className="h-5 w-5" /></button>
                                                             </div>
                                                         </div>
                                                         <div>
@@ -431,7 +479,6 @@ const ProductList: React.FC = () => {
 
             {viewMode === 'table' && (
                 <>
-                 {/* Desktop & Tablet Table View */}
                  <div className="hidden md:block bg-white shadow-md rounded-lg overflow-hidden">
                     <div className="overflow-x-auto">
                         <table className="min-w-full divide-y divide-gray-200">
@@ -475,6 +522,7 @@ const ProductList: React.FC = () => {
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-1">
                                             <button onClick={() => openModalForEdit(product)} className="p-2 text-indigo-600 hover:bg-indigo-100 rounded-full"><PencilIcon className="h-5 w-5" /></button>
+                                            <button onClick={() => handleOpenDeleteModal(product)} className="p-2 text-red-600 hover:bg-red-100 rounded-full"><TrashIcon className="h-5 w-5" /></button>
                                         </td>
                                     </tr>
                                 )) : (
@@ -488,7 +536,6 @@ const ProductList: React.FC = () => {
                         </table>
                     </div>
                  </div>
-                 {/* Mobile Card View */}
                  <div className="md:hidden space-y-3">
                     {sortedProducts.length > 0 ? sortedProducts.map(product => (
                         <div key={product.name} className="bg-white rounded-lg shadow-sm overflow-hidden border p-4 space-y-3">
@@ -496,6 +543,7 @@ const ProductList: React.FC = () => {
                                 <h3 className="font-bold text-gray-800 flex-1 pr-2">{product.name}</h3>
                                 <div className="flex items-center space-x-1 flex-shrink-0">
                                     <button onClick={() => openModalForEdit(product)} className="p-2 text-indigo-600 hover:bg-indigo-100 rounded-full"><PencilIcon className="h-5 w-5" /></button>
+                                    <button onClick={() => handleOpenDeleteModal(product)} className="p-2 text-red-600 hover:bg-red-100 rounded-full"><TrashIcon className="h-5 w-5" /></button>
                                 </div>
                             </div>
                             <div className="text-sm space-y-2 pt-2 border-t">
@@ -540,13 +588,41 @@ const ProductList: React.FC = () => {
       <Modal isOpen={isModalOpen} onClose={closeModal} title={editingProduct ? `Edit: ${editingProduct.name}` : 'Edit Product'}>
         <div className="space-y-4">
             <div>
-                <label htmlFor="name" className="block text-sm font-medium text-gray-700">Item Name</label>
-                <input type="text" id="name" name="name" value={formState.name} onChange={handleFormChange} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm disabled:bg-gray-100 disabled:text-gray-500" required disabled={isSubmitting || !!editingProduct} />
+                <div className="flex justify-between items-center">
+                    <label htmlFor="name" className="block text-sm font-medium text-gray-700">Item Name</label>
+                    <button onClick={() => setIsNameColorEditable(p => !p)} className="p-1 rounded-full hover:bg-gray-100 text-gray-500" aria-label={isNameColorEditable ? 'Lock name and colors' : 'Unlock name and colors'}>
+                        {isNameColorEditable ? <LockOpenIcon className="h-5 w-5"/> : <LockClosedIcon className="h-5 w-5"/>}
+                    </button>
+                </div>
+                <input type="text" id="name" name="name" value={formState.name} onChange={handleFormChange} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm disabled:bg-gray-100 disabled:text-gray-500" required disabled={!isNameColorEditable || isSubmitting} />
             </div>
-             <div>
+            {isNameColorEditable && (
+                <div className="p-3 bg-yellow-50 border-l-4 border-yellow-400 text-yellow-800 text-sm rounded-r-md">
+                    <p><strong>Warning:</strong> Changing the Item Name or Colors will apply these changes across all systems where this product is used.</p>
+                </div>
+            )}
+            <div>
                 <label htmlFor="colors" className="block text-sm font-medium text-gray-700">Colors</label>
-                <input type="text" id="colors" name="colors" value={formState.colors} onChange={handleFormChange} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm disabled:bg-gray-100 disabled:text-gray-500" required disabled={isSubmitting || !!editingProduct} />
-                <p className="mt-1 text-xs text-gray-500">Enter multiple colors separated by commas.</p>
+                <div className={`mt-1 flex flex-wrap items-center gap-2 p-2 border rounded-md min-h-[42px] ${!isNameColorEditable ? 'bg-gray-100' : 'border-gray-300'}`}>
+                    {formState.colors.map(color => (
+                        <span key={color} className="flex items-center gap-1.5 bg-indigo-100 text-indigo-800 text-sm font-medium px-2.5 py-1 rounded-full">
+                            {color}
+                            {isNameColorEditable && <button type="button" onClick={() => removeColor(color)} className="text-indigo-600 hover:text-indigo-800" aria-label={`Remove ${color}`}><XIcon className="h-4 w-4" /></button>}
+                        </span>
+                    ))}
+                    {isNameColorEditable && (
+                        <input
+                            type="text"
+                            value={colorInput}
+                            onChange={e => setColorInput(e.target.value)}
+                            onKeyDown={handleColorInputKeyDown}
+                            placeholder="Add color..."
+                            className="flex-grow p-1 border-0 focus:ring-0 sm:text-sm bg-transparent"
+                            disabled={isSubmitting}
+                        />
+                    )}
+                </div>
+                {isNameColorEditable && <p className="mt-1 text-xs text-gray-500">Type a color and press Enter to add it as a tag.</p>}
             </div>
             <div>
                 <label htmlFor="category" className="block text-sm font-medium text-gray-700">Category</label>
@@ -595,6 +671,16 @@ const ProductList: React.FC = () => {
           </div>
         </div>
       </Modal>
+
+      <ConfirmationModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => { if(!isSubmitting) setIsDeleteModalOpen(false) }}
+        onConfirm={handleConfirmDelete}
+        title="Delete Product"
+        message={`Are you sure you want to delete "${productToDelete?.name}"? This will remove it from the main product list and cannot be undone.`}
+        isConfirming={isSubmitting}
+        confirmText="Delete"
+      />
     </div>
   );
 };

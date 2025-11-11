@@ -120,6 +120,7 @@ function routeAction(action, payload) {
       case 'updateDailyCountStatus': return handleUpdateDailyCountStatus(payload);
       case 'addAppSheetProduct': return handleAddAppSheetProduct(payload);
       case 'updateAppSheetProduct': return handleUpdateAppSheetProduct(payload);
+      case 'deleteAppSheetProduct': return handleDeleteAppSheetProduct(payload);
       case 'addAccount': return handleAddAccount(payload);
       case 'updateAccount': return handleUpdateAccount(payload);
       case 'deleteAccount': return handleDeleteAccount(payload);
@@ -259,7 +260,7 @@ function findRowById(sheet, id, idColumnName) {
   const idValue = String(id || '').trim();
   if (!idValue) return null;
   for (var i = 1; i < data.length; i++) {
-    if (String(data[i][idCol] || '').trim() === idValue) {
+    if (String(data[i][idCol] || '').trim().toLowerCase() === idValue.toLowerCase()) {
       return { rowIndex: i + 1, rowData: data[i], headers: headers };
     }
   }
@@ -540,19 +541,42 @@ function handleUpdateDailyCountStatus(payload) {
 }
 function handleAddAppSheetProduct(payload) {
   const sheet = getSheet(SHEET_NAMES.productsListAppsheet);
-  if (findRowById(sheet, payload.name, 'Items')) throw new Error(`Product '${payload.name}' already exists.`);
+  if (findRowById(sheet, payload.name, 'Items')) {
+    throw new Error(`A product with the name '${payload.name}' already exists.`);
+  }
   sheet.appendRow([payload.name, payload.colors, payload.category, payload.subCategory, payload.lowStockThreshold]);
   return { status: 'success', message: 'Product added.' };
 }
 function handleUpdateAppSheetProduct(payload) {
   const sheet = getSheet(SHEET_NAMES.productsListAppsheet);
-  const rowInfo = findRowById(sheet, payload.name, 'Items');
-  if (!rowInfo) throw new Error(`Product '${payload.name}' not found.`);
+  const rowInfo = findRowById(sheet, payload.oldName, 'Items');
+  if (!rowInfo) {
+    throw new Error(`Product '${payload.oldName}' not found.`);
+  }
+
+  if (payload.name !== payload.oldName) {
+    if (findRowById(sheet, payload.name, 'Items')) {
+      throw new Error(`A product with the name '${payload.name}' already exists.`);
+    }
+  }
+
   const h = rowInfo.headers;
+  sheet.getRange(rowInfo.rowIndex, h.indexOf('Items') + 1).setValue(payload.name);
+  sheet.getRange(rowInfo.rowIndex, h.indexOf('Colors') + 1).setValue(payload.colors);
   sheet.getRange(rowInfo.rowIndex, h.indexOf('Category') + 1).setValue(payload.category);
   sheet.getRange(rowInfo.rowIndex, h.indexOf('Sub-Category') + 1).setValue(payload.subCategory);
   sheet.getRange(rowInfo.rowIndex, h.indexOf('Low Stock Threshold') + 1).setValue(payload.lowStockThreshold);
   return { status: 'success', message: 'Product updated.' };
+}
+
+function handleDeleteAppSheetProduct(payload) {
+  const sheet = getSheet(SHEET_NAMES.productsListAppsheet);
+  const rowInfo = findRowById(sheet, payload.productName, 'Items');
+  if (!rowInfo) {
+    throw new Error(`Product '${payload.productName}' not found.`);
+  }
+  sheet.deleteRow(rowInfo.rowIndex);
+  return { status: 'success', message: 'Product deleted.' };
 }
 
 function handleAddAccount(payload) {

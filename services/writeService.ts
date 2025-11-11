@@ -255,9 +255,14 @@ export const addAppSheetProduct = async (product: AppSheetProduct): Promise<{ su
   return postToAppsScript({ action: 'addAppSheetProduct', ...payload });
 };
 
-export const updateAppSheetProduct = async (product: Pick<AppSheetProduct, 'name' | 'category' | 'subCategory' | 'lowStockThreshold'>): Promise<{ success: boolean; message: string }> => {
+export const updateAppSheetProduct = async (product: { oldName: string, name: string, colors: string, category: string, subCategory: string, lowStockThreshold: number }): Promise<{ success: boolean; message: string }> => {
   return postToAppsScript({ action: 'updateAppSheetProduct', ...product });
 };
+
+export const deleteAppSheetProduct = async (productName: string): Promise<{ success: boolean; message: string }> => {
+  return postToAppsScript({ action: 'deleteAppSheetProduct', productName });
+};
+
 
 // --- Office Modules Write Functions ---
 
