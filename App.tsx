@@ -7,6 +7,7 @@ import { User } from './types';
 import { verifySession } from './services/writeService';
 
 const SESSION_TOKEN_KEY = 'inventory_system_token';
+const USER_KEY = 'inventory_system_user';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -20,13 +21,16 @@ const App: React.FC = () => {
           const result = await verifySession(token);
           if (result.success && result.user) {
             setUser(result.user);
+            sessionStorage.setItem(USER_KEY, JSON.stringify(result.user));
           } else {
             console.error("Session verification failed:", result.message);
             sessionStorage.removeItem(SESSION_TOKEN_KEY);
+            sessionStorage.removeItem(USER_KEY);
           }
         } catch (error) {
           console.error("Error during session verification:", error);
           sessionStorage.removeItem(SESSION_TOKEN_KEY);
+          sessionStorage.removeItem(USER_KEY);
         }
       }
       setIsLoading(false);
@@ -41,14 +45,17 @@ const App: React.FC = () => {
       const result = await verifySession(token);
       if (result.success && result.user) {
         setUser(result.user);
+        sessionStorage.setItem(USER_KEY, JSON.stringify(result.user));
       } else {
         console.error("Login verification failed immediately after login:", result.message);
         // Clear the bad token just in case
         sessionStorage.removeItem(SESSION_TOKEN_KEY);
+        sessionStorage.removeItem(USER_KEY);
       }
     } catch (error) {
       console.error("Error during post-login session verification:", error);
       sessionStorage.removeItem(SESSION_TOKEN_KEY);
+      sessionStorage.removeItem(USER_KEY);
     } finally {
       setIsLoading(false);
     }
@@ -56,6 +63,7 @@ const App: React.FC = () => {
 
   const handleLogout = () => {
     sessionStorage.removeItem(SESSION_TOKEN_KEY);
+    sessionStorage.removeItem(USER_KEY);
     setUser(null);
   };
 
