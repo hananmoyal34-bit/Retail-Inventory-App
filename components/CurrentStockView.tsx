@@ -131,7 +131,7 @@ const CurrentStockView: React.FC = () => {
     );
   }, [inventoryLogs, countLogs]);
 
-    const warehouseStock = useMemo(() => {
+    const warehouseStock: Record<string, WarehouseStockProduct[]> = useMemo(() => {
         if (warehouseCountLogs.length === 0 || appSheetProducts.length === 0) return {};
 
         const productCategoryMap = new Map<string, string>();
@@ -344,15 +344,15 @@ const CurrentStockView: React.FC = () => {
                     </span>
                 </summary>
                 <div className="p-2 space-y-2 bg-gray-50">
-                    {/* FIX: Add specific type for destructured product to resolve 'unknown' type errors. */}
-                    {products.map(({ productName, totalStock, colors }: WarehouseStockProduct) => (
-                        <details key={productName} className="bg-white shadow-lg rounded-xl overflow-hidden group/product transition-all duration-300">
+                    {/* FIX: Use map without destructuring first to ensure correct typing */}
+                    {products.map((product: WarehouseStockProduct) => (
+                        <details key={product.productName} className="bg-white shadow-lg rounded-xl overflow-hidden group/product transition-all duration-300">
                             <summary className="px-6 py-4 text-lg font-semibold text-gray-800 cursor-pointer list-none flex justify-between items-center hover:bg-gray-50 transition-colors">
                                 <div className="flex items-center gap-4">
-                                    <span className="text-indigo-700">{productName}</span>
+                                    <span className="text-indigo-700">{product.productName}</span>
                                 </div>
                                 <div className="flex items-center gap-4">
-                                     <span className="text-gray-500 text-base font-normal">({totalStock} units / {colors.length} colors)</span>
+                                     <span className="text-gray-500 text-base font-normal">({product.totalStock} units / {product.colors.length} colors)</span>
                                     <span className="text-indigo-600">
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 transform transition-transform duration-200 group-open/product:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -364,11 +364,11 @@ const CurrentStockView: React.FC = () => {
                                 <div className="px-6 py-4 flex justify-between items-center bg-indigo-50 font-bold">
                                     <p className="text-lg text-indigo-800 pr-4">Total Stock</p>
                                      <span className={`px-4 py-1.5 min-w-[60px] text-center text-lg font-bold rounded-full bg-indigo-200 text-indigo-900`}>
-                                        {totalStock}
+                                        {product.totalStock}
                                     </span>
                                 </div>
                                 {/* FIX: Add specific type for item to resolve 'any' type. */}
-                                {colors.map((item: { color: string, quantity: number }) => {
+                                {product.colors.map((item: { color: string, quantity: number }) => {
                                     const stockLevelClasses = 
                                         item.quantity <= 0 
                                         ? 'bg-red-100 text-red-800'

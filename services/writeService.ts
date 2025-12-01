@@ -1,3 +1,4 @@
+
 /**
  * ===============================================================================================
  * GOOGLE APPS SCRIPT INSTRUCTIONS
@@ -29,7 +30,8 @@ export interface SubmitCountPayload {
  */
 const postToAppsScript = async (payload: { action: string, [key: string]: any }): Promise<{ success: boolean; message: string; data?: any }> => {
     try {
-        const token = sessionStorage.getItem('inventory_system_token');
+        // Changed to localStorage to persist sessions better
+        const token = localStorage.getItem('inventory_system_token');
         const fullPayload: any = { ...payload };
 
         if (payload.action !== 'login' && payload.action !== 'verifySession') {
@@ -63,7 +65,7 @@ const postToAppsScript = async (payload: { action: string, [key: string]: any })
 
         // Handle authorization errors specifically by logging the user out.
         if (result.status === 'error' && (result.message.includes('Authorization failed') || result.message.includes('Invalid token'))) {
-            sessionStorage.removeItem('inventory_system_token');
+            localStorage.removeItem('inventory_system_token');
             window.location.reload(); 
             throw new Error(result.message);
         }

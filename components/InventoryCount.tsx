@@ -150,9 +150,9 @@ const InventoryCount: React.FC = () => {
     // 1. Find the latest physical count for each product BEFORE the selected date.
     const latestCounts = new Map<string, { count: number; date: string }>();
     countLogs
-      .filter(log => log.location === selectedLocation && formatDateToYMD(log.date) < date)
+      .filter(log => log.location === selectedLocation && (formatDateToYMD(log.date as string) || '') < date)
       .forEach(log => {
-        const logYMD = formatDateToYMD(log.date);
+        const logYMD = formatDateToYMD(log.date as string);
         if (!logYMD) return;
 
         const existing = latestCounts.get(log.productName);
@@ -177,7 +177,7 @@ const InventoryCount: React.FC = () => {
             // Find all transactions that happened AFTER the last count but BEFORE the selected date.
             const subsequentTransactions = inventoryLogs.filter(log => {
                 if (log.location !== selectedLocation || log.productName !== productName) return false;
-                const logYMD = formatDateToYMD(log.date);
+                const logYMD = formatDateToYMD(log.date as string);
                 // After last count date, but before the new count date
                 return logYMD && logYMD > lastCount.date && logYMD < date;
             });
@@ -194,7 +194,7 @@ const InventoryCount: React.FC = () => {
             inventoryLogs
               .filter(log => {
                   if (log.location !== selectedLocation || log.productName !== productName) return false;
-                  const logDate = formatDateToYMD(log.date);
+                  const logDate = formatDateToYMD(log.date as string);
                   return logDate && logDate < date;
               })
               .forEach(log => {
@@ -213,13 +213,13 @@ const InventoryCount: React.FC = () => {
     
     if(activeTab === 'count') {
         const finalizedLogExists = countLogs.some(log => 
-            log.location === selectedLocation && formatDateToYMD(log.date) === date
+            log.location === selectedLocation && formatDateToYMD(String(log.date)) === date
         );
         setIsFinalized(finalizedLogExists);
 
         if (finalizedLogExists) {
             const finalizedEntries = products.map((product: Product) => {
-                const log = countLogs.find(l => l.location === selectedLocation && formatDateToYMD(l.date) === date && l.productName === product.productName);
+                const log = countLogs.find(l => l.location === selectedLocation && formatDateToYMD(String(l.date)) === date && l.productName === product.productName);
                 return {
                     productID: product.productID, productName: product.productName,
                     openingStock: log?.openingStock ?? 0, calculatedOpeningStock: 0,

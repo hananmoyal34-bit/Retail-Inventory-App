@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import LandingPage from './components/LandingPage';
 import AdminPortal from './components/AdminPortal';
@@ -15,22 +16,23 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const validateToken = async () => {
-      const token = sessionStorage.getItem(SESSION_TOKEN_KEY);
+      // Changed to localStorage for persistence
+      const token = localStorage.getItem(SESSION_TOKEN_KEY);
       if (token) {
         try {
           const result = await verifySession(token);
           if (result.success && result.user) {
             setUser(result.user);
-            sessionStorage.setItem(USER_KEY, JSON.stringify(result.user));
+            localStorage.setItem(USER_KEY, JSON.stringify(result.user));
           } else {
             console.error("Session verification failed:", result.message);
-            sessionStorage.removeItem(SESSION_TOKEN_KEY);
-            sessionStorage.removeItem(USER_KEY);
+            localStorage.removeItem(SESSION_TOKEN_KEY);
+            localStorage.removeItem(USER_KEY);
           }
         } catch (error) {
           console.error("Error during session verification:", error);
-          sessionStorage.removeItem(SESSION_TOKEN_KEY);
-          sessionStorage.removeItem(USER_KEY);
+          localStorage.removeItem(SESSION_TOKEN_KEY);
+          localStorage.removeItem(USER_KEY);
         }
       }
       setIsLoading(false);
@@ -39,31 +41,33 @@ const App: React.FC = () => {
   }, []);
 
   const handleLogin = async (token: string) => {
-    sessionStorage.setItem(SESSION_TOKEN_KEY, token);
+    // Changed to localStorage for persistence
+    localStorage.setItem(SESSION_TOKEN_KEY, token);
     setIsLoading(true);
     try {
       const result = await verifySession(token);
       if (result.success && result.user) {
         setUser(result.user);
-        sessionStorage.setItem(USER_KEY, JSON.stringify(result.user));
+        localStorage.setItem(USER_KEY, JSON.stringify(result.user));
       } else {
         console.error("Login verification failed immediately after login:", result.message);
         // Clear the bad token just in case
-        sessionStorage.removeItem(SESSION_TOKEN_KEY);
-        sessionStorage.removeItem(USER_KEY);
+        localStorage.removeItem(SESSION_TOKEN_KEY);
+        localStorage.removeItem(USER_KEY);
       }
     } catch (error) {
       console.error("Error during post-login session verification:", error);
-      sessionStorage.removeItem(SESSION_TOKEN_KEY);
-      sessionStorage.removeItem(USER_KEY);
+      localStorage.removeItem(SESSION_TOKEN_KEY);
+      localStorage.removeItem(USER_KEY);
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleLogout = () => {
-    sessionStorage.removeItem(SESSION_TOKEN_KEY);
-    sessionStorage.removeItem(USER_KEY);
+    // Changed to localStorage for persistence
+    localStorage.removeItem(SESSION_TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
     setUser(null);
   };
 
