@@ -93,7 +93,8 @@ const InventoryCount: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
-    const savedUserJson = sessionStorage.getItem('inventory_system_user');
+    // FIX: Changed from sessionStorage to localStorage to match App.tsx login persistence
+    const savedUserJson = localStorage.getItem('inventory_system_user');
     if (savedUserJson) {
         setUser(JSON.parse(savedUserJson));
     }
@@ -520,7 +521,8 @@ const InventoryCount: React.FC = () => {
     const [year, month, day] = date.split('-').map(Number);
     submissionTimestamp.setFullYear(year, month - 1, day);
 
-    const savedUserJson = sessionStorage.getItem('inventory_system_user');
+    // FIX: Retrieve user from localStorage instead of sessionStorage
+    const savedUserJson = localStorage.getItem('inventory_system_user');
     const currentUser: User | null = savedUserJson ? JSON.parse(savedUserJson) : null;
 
     const payload = {
