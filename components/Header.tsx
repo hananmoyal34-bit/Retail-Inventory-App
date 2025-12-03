@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Page } from '../types';
 import { BoxIcon, ClipboardListIcon, CogIcon, ChevronDownIcon, HomeIcon, LocationMarkerIcon, LoginIcon, QuestionMarkCircleIcon, TableCellsIcon, TruckIcon, UsersIcon, WarehouseIcon, DocumentTextIcon, UserCircleIcon, CreditCardIcon, FolderIcon } from './icons';
@@ -16,7 +17,6 @@ const Header: React.FC<HeaderProps> = ({ activePage, setActivePage, onLogout }) 
 
   const mainNavItems = [
     { id: Page.DASHBOARD, label: 'Dashboard', icon: <HomeIcon /> },
-    { id: Page.ORDERS, label: 'Orders', icon: <TruckIcon /> },
     { id: Page.WAREHOUSE_INVENTORY, label: 'Warehouse Inventory', icon: <WarehouseIcon /> },
     { id: Page.TRANSACTION_LOGS, label: 'Inventory Report', icon: <ClipboardListIcon /> },
   ];
@@ -26,7 +26,6 @@ const Header: React.FC<HeaderProps> = ({ activePage, setActivePage, onLogout }) 
     { id: Page.LOCATIONS, label: 'Locations', icon: <LocationMarkerIcon /> },
     { id: Page.USERS, label: 'Users', icon: <UsersIcon /> },
     { id: Page.COUNT, label: 'Count', icon: <TableCellsIcon /> },
-    { id: Page.COUNT_LOG, label: 'Count Log', icon: <TableCellsIcon /> },
   ];
   
   const viewerNavItems = [

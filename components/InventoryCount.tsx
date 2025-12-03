@@ -151,9 +151,9 @@ const InventoryCount: React.FC = () => {
     // 1. Find the latest physical count for each product BEFORE the selected date.
     const latestCounts = new Map<string, { count: number; date: string }>();
     countLogs
-      .filter(log => log.location === selectedLocation && formatDateToYMD(String(log.date))! < date)
-      .forEach(log => {
-        const logYMD = formatDateToYMD(String(log.date));
+      .filter((log: CountLog) => log.location === selectedLocation && (formatDateToYMD(log.date as string) || '') < date)
+      .forEach((log: CountLog) => {
+        const logYMD = formatDateToYMD(log.date as string);
         if (!logYMD) return;
 
         const existing = latestCounts.get(log.productName);
@@ -176,9 +176,9 @@ const InventoryCount: React.FC = () => {
             let stock = lastCount.count;
 
             // Find all transactions that happened AFTER the last count but BEFORE the selected date.
-            const subsequentTransactions = inventoryLogs.filter(log => {
+            const subsequentTransactions = inventoryLogs.filter((log: InventoryLog) => {
                 if (log.location !== selectedLocation || log.productName !== productName) return false;
-                const logYMD = formatDateToYMD(String(log.date));
+                const logYMD = formatDateToYMD(log.date as string);
                 // After last count date, but before the new count date
                 return logYMD && logYMD > lastCount.date && logYMD < date;
             });
@@ -193,9 +193,9 @@ const InventoryCount: React.FC = () => {
             // Case 2: No previous count exists. Sum all transactions from the beginning up to the selected date.
             let stock = 0;
             inventoryLogs
-              .filter(log => {
+              .filter((log: InventoryLog) => {
                   if (log.location !== selectedLocation || log.productName !== productName) return false;
-                  const logDate = formatDateToYMD(String(log.date));
+                  const logDate = formatDateToYMD(log.date as string);
                   return logDate && logDate < date;
               })
               .forEach(log => {
