@@ -237,6 +237,7 @@ const Dashboard: React.FC<DashboardProps> = ({ setActivePage }) => {
 
   // State for new Transactions view
   const [isTransactionViewOpen, setIsTransactionViewOpen] = useState(true);
+  // Default to 'All' but remove dropdown control in UI as requested
   const [selectedTransactionLogLocation, setSelectedTransactionLogLocation] = useState<string>('All');
   const [selectedTransactionLogDate, setSelectedTransactionLogDate] = useState<string>(getCurrentDateInTimezone());
   const [selectedTransactionLogType, setSelectedTransactionLogType] = useState<string>('Adjustment-Variance');
@@ -530,27 +531,43 @@ const Dashboard: React.FC<DashboardProps> = ({ setActivePage }) => {
         );
     };
 
+    const handleExpandAllTransactions = () => {
+        if (transactionLogViewMode === 'byProduct') {
+            setExpandedTransactionProducts(new Set(Object.keys(groupedTransactionLogs)));
+        } else if (transactionLogViewMode === 'byLocation') {
+            setExpandedTransactionLocations(new Set(Object.keys(groupedByLocationLogs)));
+        }
+    };
+
+    const handleCollapseAllTransactions = () => {
+        if (transactionLogViewMode === 'byProduct') {
+            setExpandedTransactionProducts(new Set());
+        } else if (transactionLogViewMode === 'byLocation') {
+            setExpandedTransactionLocations(new Set());
+        }
+    };
+
     const renderViewModeToggle = (
         currentMode: 'chronological' | 'byProduct' | 'byLocation',
         setMode: (mode: 'chronological' | 'byProduct' | 'byLocation') => void
     ) => (
         <div className="flex justify-end p-2">
-            <div className="inline-flex items-center bg-gray-100 rounded-lg p-1 space-x-1">
+            <div className="inline-flex items-center bg-gray-100 rounded-lg p-1 space-x-1 w-full sm:w-auto overflow-x-auto">
                 <button
                     onClick={() => setMode('byLocation')}
-                    className={`px-3 py-1 text-sm font-semibold rounded-md transition-colors ${currentMode === 'byLocation' ? 'bg-white text-indigo-700 shadow' : 'text-gray-600 hover:text-gray-800'}`}
+                    className={`flex-1 sm:flex-none px-3 py-1 text-sm font-semibold rounded-md transition-colors whitespace-nowrap ${currentMode === 'byLocation' ? 'bg-white text-indigo-700 shadow' : 'text-gray-600 hover:text-gray-800'}`}
                 >
                     Group by Location
                 </button>
                 <button
                     onClick={() => setMode('byProduct')}
-                    className={`px-3 py-1 text-sm font-semibold rounded-md transition-colors ${currentMode === 'byProduct' ? 'bg-white text-indigo-700 shadow' : 'text-gray-600 hover:text-gray-800'}`}
+                    className={`flex-1 sm:flex-none px-3 py-1 text-sm font-semibold rounded-md transition-colors whitespace-nowrap ${currentMode === 'byProduct' ? 'bg-white text-indigo-700 shadow' : 'text-gray-600 hover:text-gray-800'}`}
                 >
                     Group by Product
                 </button>
                 <button
                     onClick={() => setMode('chronological')}
-                    className={`px-3 py-1 text-sm font-semibold rounded-md transition-colors ${currentMode === 'chronological' ? 'bg-white text-indigo-700 shadow' : 'text-gray-600 hover:text-gray-800'}`}
+                    className={`flex-1 sm:flex-none px-3 py-1 text-sm font-semibold rounded-md transition-colors whitespace-nowrap ${currentMode === 'chronological' ? 'bg-white text-indigo-700 shadow' : 'text-gray-600 hover:text-gray-800'}`}
                 >
                     Chronological
                 </button>
@@ -599,59 +616,73 @@ const Dashboard: React.FC<DashboardProps> = ({ setActivePage }) => {
             {/* Fixed scrolling by using max-h-[500vh] and overflow-y-auto */}
             <div className={`transition-all duration-500 ease-in-out ${isTransactionViewOpen ? 'max-h-[500vh] overflow-y-auto mt-4 pt-4 border-t border-white/30' : 'max-h-0 overflow-hidden'}`}>
                 <div className="p-4 mb-4 bg-white/20 rounded-lg">
-                    <div className="flex flex-col sm:flex-row gap-4 items-end justify-between">
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end w-full">
-                            <div>
-                                <label htmlFor="txn-location-filter" className="block text-sm font-medium text-gray-700">Location</label>
-                                <select id="txn-location-filter" value={selectedTransactionLogLocation} onChange={(e) => setSelectedTransactionLogLocation(e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm">
-                                    <option value="All">All Locations</option>
-                                    {locations.map(loc => <option key={loc.id} value={loc.name}>{loc.name}</option>)}
-                                </select>
-                            </div>
-                            <div>
+                    <div className="flex flex-col lg:flex-row gap-4 items-end justify-between">
+                        {/* Filters Group */}
+                        <div className="flex flex-wrap gap-4 items-end w-full lg:w-auto">
+                            <div className="w-full sm:w-auto min-w-[200px]">
                                 <label htmlFor="txn-type-filter" className="block text-sm font-medium text-gray-700">Transaction Type</label>
                                 <select id="txn-type-filter" value={selectedTransactionLogType} onChange={(e) => setSelectedTransactionLogType(e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm">
                                     {transactionTypes.map(type => <option key={type} value={type}>{type}</option>)}
                                 </select>
                             </div>
-                            <div>
+                            <div className="w-full sm:w-auto">
                                 <DatePicker label="Filter by Date" value={selectedTransactionLogDate} onChange={setSelectedTransactionLogDate} />
                             </div>
-                            <div>
-                                <button onClick={clearTransactionFilters} className="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300">
+                            <div className="w-full sm:w-auto">
+                                <button onClick={clearTransactionFilters} className="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 whitespace-nowrap">
                                     Clear Filters
                                 </button>
                             </div>
                         </div>
                         
-                        <div className="relative flex-shrink-0" ref={columnSelectorRef}>
-                            <button 
-                                onClick={() => setIsColumnSelectorOpen(!isColumnSelectorOpen)}
-                                className="flex items-center space-x-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                            >
-                                <AdjustmentsIcon className="h-5 w-5 text-gray-500" />
-                                <span>Columns</span>
-                            </button>
-                            {isColumnSelectorOpen && (
-                                <div className="origin-top-right absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-20">
-                                    <div className="py-1" role="menu" aria-orientation="vertical">
-                                        <div className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                            Visible Columns
-                                        </div>
-                                        {COLUMN_DEFINITIONS.map((col) => (
-                                            <label key={col.key} className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={visibleColumns.has(col.key)}
-                                                    onChange={() => handleColumnToggle(col.key)}
-                                                    className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded mr-3"
-                                                />
-                                                {col.label}
-                                            </label>
-                                        ))}
-                                    </div>
+                        {/* Tools Group: Expand/Collapse + Columns */}
+                        <div className="flex flex-wrap items-center gap-2 justify-end w-full lg:w-auto">
+                             {(transactionLogViewMode === 'byProduct' || transactionLogViewMode === 'byLocation') && (
+                                <div className="flex space-x-2 mr-2">
+                                    <button 
+                                        onClick={handleExpandAllTransactions} 
+                                        className="px-3 py-2 text-xs font-medium text-indigo-700 bg-indigo-100 rounded-md hover:bg-indigo-200 transition-colors whitespace-nowrap"
+                                    >
+                                        Expand All
+                                    </button>
+                                    <button 
+                                        onClick={handleCollapseAllTransactions} 
+                                        className="px-3 py-2 text-xs font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 transition-colors whitespace-nowrap"
+                                    >
+                                        Collapse All
+                                    </button>
                                 </div>
                             )}
+
+                            <div className="relative flex-shrink-0" ref={columnSelectorRef}>
+                                <button 
+                                    onClick={() => setIsColumnSelectorOpen(!isColumnSelectorOpen)}
+                                    className="flex items-center space-x-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                                >
+                                    <AdjustmentsIcon className="h-5 w-5 text-gray-500" />
+                                    <span>Columns</span>
+                                </button>
+                                {isColumnSelectorOpen && (
+                                    <div className="origin-top-right absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50">
+                                        <div className="py-1" role="menu" aria-orientation="vertical">
+                                            <div className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                                Visible Columns
+                                            </div>
+                                            {COLUMN_DEFINITIONS.map((col) => (
+                                                <label key={col.key} className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={visibleColumns.has(col.key)}
+                                                        onChange={() => handleColumnToggle(col.key)}
+                                                        className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded mr-3"
+                                                    />
+                                                    {col.label}
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>
