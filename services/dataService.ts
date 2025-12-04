@@ -1,3 +1,4 @@
+
 import { readSheet } from './googleSheetService';
 import { Product, User, Location, InventoryLog, LocationOrder, CountLog, ShippingData, AppSheetProduct, WarehouseCountLog, ProductCategory, DraftCount, Account, CustomerRecord, Task, Contact } from '../types';
 // FIX: Import getUsers from writeService to re-export it from dataService for consistent API.
@@ -164,11 +165,17 @@ export const getProducts = async (): Promise<Product[]> => {
   if (data.length <= 1) return []; // No data beyond header
   const rows = data.slice(1);
   return rows.map(row => ({
+    // Column Structure based on user info:
+    // 0: ProductID
+    // 1: Product Name
+    // 2: Category (Unused in Product type but present in sheet)
+    // 3: Image
+    // 4: Locations (Unused in Product type)
+    // 5: CreateDate
     productID: safeParseString(row[0]),
     productName: safeParseString(row[1]),
-    // Swapped column indices to fix sync issue: createDate is likely column 4, imageUrl is column 3.
-    createDate: formatDateToYMD(safeParseString(row[3])) || '',
-    imageUrl: safeParseString(row[2]),
+    imageUrl: safeParseString(row[3]),
+    createDate: formatDateToYMD(safeParseString(row[5])) || '',
   })).filter(p => p.productID); // Filter out empty rows
 };
 

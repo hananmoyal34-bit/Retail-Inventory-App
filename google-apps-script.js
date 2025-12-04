@@ -1,3 +1,4 @@
+
 /**
  * ======================================================================================
  *  Retail Inventory System - Google Apps Script Backend (v2 - Secured)
@@ -34,7 +35,8 @@ const PERMISSIONS = {
     // Added Product Management Permissions
     'addAppSheetProduct', 'updateAppSheetProduct', 'deleteAppSheetProduct',
     // Added Category Management & Daily Count Permissions
-    'addCategory', 'updateCategory', 'deleteCategory', 'updateDailyCountStatus'
+    'addCategory', 'updateCategory', 'deleteCategory', 'updateDailyCountStatus',
+    'addProduct', 'updateProduct'
   ],
   'Office': [
     'getUsers', 'getProductCategories', 'getAppSheetProducts' // Example read-only access
@@ -247,7 +249,7 @@ function handleGetUsers() {
   return { status: 'success', data: users };
 }
 
-// --- Utility Functions (unchanged from original) ---
+// --- Utility Functions ---
 function getSheet(name) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName(name);
@@ -270,6 +272,25 @@ function findRowById(sheet, id, idColumnName) {
   }
   return null;
 }
+
+// Helper to find a column index case-insensitively, given list of candidates
+function findColumnName(sheet, candidates) {
+  const data = sheet.getDataRange().getValues();
+  if (data.length < 1) return null;
+  const headers = data[0].map(h => String(h || '').trim().toLowerCase());
+  
+  for (const candidate of candidates) {
+    const candidateLower = candidate.toLowerCase();
+    for (let i = 0; i < headers.length; i++) {
+      if (headers[i] === candidateLower) {
+        // Return the actual header string from the sheet
+        return data[0][i];
+      }
+    }
+  }
+  return null; 
+}
+
 function deleteDraftCounts(location, date) {
   const sheet = getSheet(SHEET_NAMES.draftCounts);
   if (sheet.getLastRow() < 2) return;
@@ -286,7 +307,7 @@ function deleteDraftCounts(location, date) {
   }
 }
 
-// --- Action Handlers (code logic is mostly unchanged, but now they are protected) ---
+// --- Action Handlers ---
 
 function handleSubmitInventoryCount(payload) {
   const countSheet = getSheet(SHEET_NAMES.count);
@@ -405,11 +426,20 @@ function handleUpdateOrderStatus(payload) {
   
   if ((status === 'Pickup' || status === 'Partial') && originalStatus === 'Pending') {
     const productsSheet = getSheet(SHEET_NAMES.products);
-    const productNames = productsSheet.getRange('B2:B').getValues().flat();
-    const productName = rowInfo.rowData[h.indexOf('Item')];
-    if (productNames.includes(productName)) {
-      const orderQuantity = (status === 'Partial' && quantity != null) ? quantity : rowInfo.rowData[h.indexOf('Quantity')];
-      updateDraftCountStockIn(rowInfo.rowData[h.indexOf('Location')], productName, orderQuantity);
+    // Dynamically find product name column
+    const productNameCol = findColumnName(productsSheet, ['ProductName', 'Product Name', 'Item', 'Name']);
+    
+    if (productNameCol) {
+      const headerRow = productsSheet.getRange(1, 1, 1, productsSheet.getLastColumn()).getValues()[0];
+      const colIndex = headerRow.indexOf(productNameCol);
+      // Fetch only the product name column
+      const productNames = productsSheet.getRange(2, colIndex + 1, productsSheet.getLastRow() - 1, 1).getValues().flat();
+      
+      const productName = rowInfo.rowData[h.indexOf('Item')];
+      if (productNames.includes(productName)) {
+        const orderQuantity = (status === 'Partial' && quantity != null) ? quantity : rowInfo.rowData[h.indexOf('Quantity')];
+        updateDraftCountStockIn(rowInfo.rowData[h.indexOf('Location')], productName, orderQuantity);
+      }
     }
   }
   
@@ -452,11 +482,6 @@ function handleDeleteLocation(payload) {
     sheet.deleteRow(rowInfo.rowIndex);
     return { status: 'success', message: 'Location deleted.' };
 }
-
-// All other handlers from the original script are assumed to be here, unchanged in their core logic,
-// but now they are called via `routeAction` and are therefore protected by the token and RBAC check.
-// For brevity, only the ones with logic changes (like handleDeleteOrder) are shown in full.
-// The rest of the functions from the original script would be pasted below this line.
 
 function handleUpdateOrder(payload) {
   const sheet = getSheet(SHEET_NAMES.locationOrders);
@@ -522,27 +547,59 @@ function handleDeleteUser(payload) {
   return { status: 'success', message: 'User deleted.' };
 }
 
-function handleAddProduct(payload) { getSheet(SHEET_NAMES.products).appendRow([generateUniqueId(), payload.productName, payload.imageUrl, new Date()]); return { status: 'success', message: 'Product added.' }; }
+function handleAddProduct(payload) { 
+  // Structure: ProductID, Product Name, Category, Image, Locations, CreateDate
+  getSheet(SHEET_NAMES.products).appendRow([
+    generateUniqueId(), 
+    payload.productName, 
+    '', // Category - not provided in quick add
+    payload.imageUrl, 
+    '', // Locations - not provided
+    new Date()
+  ]); 
+  return { status: 'success', message: 'Product added.' }; 
+}
+
 function handleUpdateProduct(payload) {
   const sheet = getSheet(SHEET_NAMES.products);
-  const rowInfo = findRowById(sheet, payload.productID, 'ProductID');
+  const idCol = findColumnName(sheet, ['ProductID', 'Product ID', 'ID']);
+  const rowInfo = findRowById(sheet, payload.productID, idCol);
   if (!rowInfo) throw new Error("Product ID not found.");
+  
   const h = rowInfo.headers;
-  sheet.getRange(rowInfo.rowIndex, h.indexOf('ProductName') + 1).setValue(payload.productName);
-  sheet.getRange(rowInfo.rowIndex, h.indexOf('ImageUrl') + 1).setValue(payload.imageUrl);
+  const nameCol = findColumnName(sheet, ['ProductName', 'Product Name', 'Item', 'Name']);
+  const imgCol = findColumnName(sheet, ['ImageUrl', 'Image Url', 'Image']);
+  
+  if(nameCol) sheet.getRange(rowInfo.rowIndex, h.indexOf(nameCol) + 1).setValue(payload.productName);
+  if(imgCol) sheet.getRange(rowInfo.rowIndex, h.indexOf(imgCol) + 1).setValue(payload.imageUrl);
+  
   return { status: 'success', message: 'Product updated.' };
 }
+
 function handleUpdateDailyCountStatus(payload) {
   const sheet = getSheet(SHEET_NAMES.products);
-  const rowInfo = findRowById(sheet, payload.productName, 'ProductName');
+  const productNameCol = findColumnName(sheet, ['ProductName', 'Product Name', 'Item', 'Name']);
+  const rowInfo = findRowById(sheet, payload.productName, productNameCol);
+  
   if (payload.isOnDailyCount) {
-    if (!rowInfo) sheet.appendRow([generateUniqueId(), payload.productName, '', new Date()]);
+    if (!rowInfo) {
+       // Structure: ProductID, Product Name, Category, Image, Locations, CreateDate
+       sheet.appendRow([
+         generateUniqueId(), 
+         payload.productName, 
+         '', // Category 
+         '', // Image
+         '', // Locations
+         new Date()
+       ]);
+    }
     return { status: 'success', message: `Added to daily count.` };
   } else {
     if (rowInfo) sheet.deleteRow(rowInfo.rowIndex);
     return { status: 'success', message: `Removed from daily count.` };
   }
 }
+
 function handleAddAppSheetProduct(payload) {
   const sheet = getSheet(SHEET_NAMES.productsListAppsheet);
   if (findRowById(sheet, payload.name, 'Items')) {
