@@ -1,4 +1,3 @@
-
 import React, { useMemo, useState, useEffect } from 'react';
 import { InventoryLog, CountLog, Location, WarehouseCountLog, AppSheetProduct } from '../types';
 import { getInventoryLogs, getCountLogs, formatDateToYMD, getLocations, getCurrentDateInTimezone, getWarehouseCountLogs, getAppSheetProducts } from '../services/dataService';
@@ -333,8 +332,7 @@ const CurrentStockView: React.FC = () => {
 
     {activeTab === 'warehouse' && (
         <div className="space-y-4 pt-4">
-            {/* FIX: Removed casting to unknown and use Object.entries on warehouseStock directly, then cast for the map */}
-            {Object.keys(warehouseStock as any).length > 0 ? (Object.entries(warehouseStock as any) as [string, WarehouseStockProduct[]][]).map(([category, products]) => (
+            {Object.keys(warehouseStock).length > 0 ? (Object.entries(warehouseStock) as [string, WarehouseStockProduct[]][]).map(([category, products]) => (
             <details key={category} className="bg-white shadow-md rounded-xl overflow-hidden group transition-all duration-300">
                 <summary className="px-6 py-4 text-xl font-bold text-gray-800 cursor-pointer list-none flex justify-between items-center bg-gray-100 hover:bg-gray-200 transition-colors">
                     <span>{category}</span>

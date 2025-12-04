@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { getProducts, getLocations, getInventoryLogs, getCurrentDateInTimezone, formatDateToYMD, getAppSheetProducts, formatToLocaleString, getCountLogs, getDraftCounts } from '../services/dataService';
 import { submitInventoryCount, submitWarehouseCount, saveDraftCount } from '../services/writeService';
@@ -152,9 +151,9 @@ const InventoryCount: React.FC = () => {
     // 1. Find the latest physical count for each product BEFORE the selected date.
     const latestCounts = new Map<string, { count: number; date: string }>();
     countLogs
-      .filter((log: CountLog) => log.location === selectedLocation && (formatDateToYMD(String(log.date)) || '') < date)
+      .filter((log: CountLog) => log.location === selectedLocation && (formatDateToYMD(log.date as string) || '') < date)
       .forEach((log: CountLog) => {
-        const logYMD = formatDateToYMD(String(log.date));
+        const logYMD = formatDateToYMD(log.date as string);
         if (!logYMD) return;
 
         const existing = latestCounts.get(log.productName);
@@ -179,7 +178,7 @@ const InventoryCount: React.FC = () => {
             // Find all transactions that happened AFTER the last count but BEFORE the selected date.
             const subsequentTransactions = inventoryLogs.filter((log: InventoryLog) => {
                 if (log.location !== selectedLocation || log.productName !== productName) return false;
-                const logYMD = formatDateToYMD(String(log.date));
+                const logYMD = formatDateToYMD(log.date as string);
                 // After last count date, but before the new count date
                 return logYMD && logYMD > lastCount.date && logYMD < date;
             });
@@ -196,7 +195,7 @@ const InventoryCount: React.FC = () => {
             inventoryLogs
               .filter((log: InventoryLog) => {
                   if (log.location !== selectedLocation || log.productName !== productName) return false;
-                  const logDate = formatDateToYMD(String(log.date));
+                  const logDate = formatDateToYMD(log.date as string);
                   return logDate && logDate < date;
               })
               .forEach(log => {

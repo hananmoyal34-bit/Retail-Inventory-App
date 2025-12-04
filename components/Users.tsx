@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { User, Location } from '../types';
 // FIX: Import getUsers from dataService for consistency
@@ -74,7 +75,8 @@ const Users: React.FC = () => {
       name: user.name,
       email: user.email,
       phone: user.phone,
-      accessCode: user.accessCode,
+      // Ensure accessCode is a string to prevent .trim() errors if it comes back as a number
+      accessCode: String(user.accessCode || ''),
       role: user.role || 'Manager',
       location: user.location.split(',').map(loc => loc.trim()).filter(Boolean),
     });
@@ -102,22 +104,41 @@ const Users: React.FC = () => {
   };
 
   const handleSave = async () => {
-    if (!formState.name.trim() || !formState.accessCode.trim()) {
+    // Explicitly convert to string to safe-guard against numbers
+    const safeAccessCode = String(formState.accessCode || '');
+    
+    if (!formState.name.trim() || !safeAccessCode.trim()) {
       setError('User name and access code cannot be empty.');
       return;
     }
     setIsSubmitting(true);
     setError(null);
-    const dataToSubmit = { ...formState, location: formState.location.join(', ') };
-    const result = editingUser
-      ? await updateUser({ ...editingUser, ...dataToSubmit })
-      : await addUser(dataToSubmit);
-    setIsSubmitting(false);
-    if (result.success) {
-      closeModal();
-      await fetchUsersAndLocations();
-    } else {
-      setError(result.message);
+    
+    try {
+      const payloadBase = {
+          name: formState.name,
+          email: formState.email,
+          phone: formState.phone,
+          accessCode: safeAccessCode,
+          role: formState.role,
+          location: formState.location.join(', ')
+      };
+
+      const result = editingUser
+        ? await updateUser({ userID: editingUser.userID, ...payloadBase })
+        : await addUser(payloadBase);
+      
+      if (result.success) {
+        closeModal();
+        await fetchUsersAndLocations();
+      } else {
+        setError(result.message);
+      }
+    } catch (err: any) {
+      console.error("Error saving user:", err);
+      setError(err.message || 'An unexpected error occurred while saving.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -125,12 +146,18 @@ const Users: React.FC = () => {
     if (window.confirm(`Are you sure you want to delete the user "${user.name}"? This action cannot be undone.`)) {
       setIsSubmitting(true);
       setError(null);
-      const result = await deleteUser(user.userID);
-      setIsSubmitting(false);
-      if (result.success) {
-        await fetchUsersAndLocations();
-      } else {
-        alert(`Failed to delete user: ${result.message}`);
+      try {
+        const result = await deleteUser(user.userID);
+        if (result.success) {
+          await fetchUsersAndLocations();
+        } else {
+          alert(`Failed to delete user: ${result.message}`);
+        }
+      } catch (err: any) {
+        console.error("Error deleting user:", err);
+        alert(`Error deleting user: ${err.message || 'Unknown error'}`);
+      } finally {
+        setIsSubmitting(false);
       }
     }
   };

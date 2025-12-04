@@ -30,14 +30,15 @@ const TransactionLogs: React.FC = () => {
   // Column visibility state
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(() => {
     try {
-      const savedColumns = localStorage.getItem('inventoryReportVisibleColumns');
+      const savedColumns = localStorage.getItem('inventoryReportVisibleColumns_v2');
       if (savedColumns) {
         return new Set(JSON.parse(savedColumns));
       }
     } catch (error) {
       console.error("Failed to load visible columns from local storage", error);
     }
-    return new Set(COLUMN_DEFINITIONS.map(c => c.key));
+    // Default columns: Product Name, Quantity, Location. Exclude Date/Time, Type, Log ID.
+    return new Set(['productName', 'quantity', 'location']);
   });
 
   const [isColumnSelectorOpen, setIsColumnSelectorOpen] = useState(false);
@@ -71,7 +72,7 @@ const TransactionLogs: React.FC = () => {
   // Save visible columns to local storage whenever they change
   useEffect(() => {
     try {
-      localStorage.setItem('inventoryReportVisibleColumns', JSON.stringify(Array.from(visibleColumns)));
+      localStorage.setItem('inventoryReportVisibleColumns_v2', JSON.stringify(Array.from(visibleColumns)));
     } catch (error) {
       console.error("Failed to save visible columns to local storage", error);
     }

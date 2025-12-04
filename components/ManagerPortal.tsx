@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { User, Product, OrderItem, OrderPayload, Location, LocationOrder, AppSheetProduct, UpdateOrderPayload } from '../types';
 import { getUsers, getProducts, getLocations, getLocationOrders, formatToLocaleString, getAppSheetProducts, formatDateToYMD } from '../services/dataService';
 import { submitOrder, updateOrder, deleteOrder } from '../services/writeService';
@@ -78,6 +78,7 @@ const ManagerPortal: React.FC<ManagerPortalProps> = ({ user, onLogout }) => {
     
     // Custom Item History State
     const [customItemHistory, setCustomItemHistory] = useState<string[]>([]);
+    const [showCustomItemHistory, setShowCustomItemHistory] = useState(false);
     const CUSTOM_HISTORY_KEY = `manager_custom_item_history_${user.userID}`;
 
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -167,6 +168,9 @@ const ManagerPortal: React.FC<ManagerPortalProps> = ({ user, onLogout }) => {
                 timestamp: Date.now()
             };
             localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+        } else {
+            // Explicitly remove draft if no data, to keep storage clean and logic consistent
+            localStorage.removeItem(DRAFT_KEY);
         }
     }, [orderItems, selectedLocations, userLocations, isLoading, DRAFT_KEY]);
 
@@ -259,18 +263,27 @@ const ManagerPortal: React.FC<ManagerPortalProps> = ({ user, onLogout }) => {
         };
         setOrderItems(prev => [...prev, newItem]);
         
-        // Save to custom item history
+        // Save to custom item history with limits and duplicate prevention
         const trimmedName = customItemName.trim();
-        if (!customItemHistory.includes(trimmedName)) {
-            const newHistory = [trimmedName, ...customItemHistory].slice(0, 50); // Keep last 50
-            setCustomItemHistory(newHistory);
-            localStorage.setItem(CUSTOM_HISTORY_KEY, JSON.stringify(newHistory));
+        if (trimmedName) {
+             // Remove existing instance to move it to the top (LRU behavior)
+             const filteredHistory = customItemHistory.filter(h => h !== trimmedName);
+             // Add to top, limit to 20 items
+             const newHistory = [trimmedName, ...filteredHistory].slice(0, 20);
+             setCustomItemHistory(newHistory);
+             localStorage.setItem(CUSTOM_HISTORY_KEY, JSON.stringify(newHistory));
         }
 
         setCustomItemName('');
         setCustomItemQuantity(1);
         setCustomItemNotes('');
         setShowCustomItemNotes(false);
+    };
+
+    const handleDeleteHistoryItem = (itemToDelete: string) => {
+        const updatedHistory = customItemHistory.filter(item => item !== itemToDelete);
+        setCustomItemHistory(updatedHistory);
+        localStorage.setItem(CUSTOM_HISTORY_KEY, JSON.stringify(updatedHistory));
     };
 
     const handleRemoveItem = (itemId: string) => {
@@ -438,8 +451,17 @@ const ManagerPortal: React.FC<ManagerPortalProps> = ({ user, onLogout }) => {
 
     const resetOrderForm = () => {
         setOrderItems([]);
+        setStagedItemsForProduct([]);
         // Reset location selection: empty if > 1 location, otherwise keep single location
         setSelectedLocations(userLocations.length === 1 ? userLocations : []);
+        setCustomItemName('');
+        setCustomItemQuantity(1);
+        setCustomItemNotes('');
+        setSearchQuery('');
+        setOrderProductNotes('');
+        setSelectedAppSheetProduct(null);
+        
+        // Force removal from storage
         localStorage.removeItem(DRAFT_KEY);
         setSubmissionStatus({ type: null, message: '' });
     };
@@ -676,21 +698,54 @@ const ManagerPortal: React.FC<ManagerPortalProps> = ({ user, onLogout }) => {
                                         </summary>
                                         <div className="mt-4 pt-4 border-t space-y-4">
                                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                                                <div className="md:col-span-2">
+                                                <div className="md:col-span-2 relative">
                                                     <label className="text-sm font-medium text-gray-700">Item Name</label>
-                                                    <input 
-                                                        type="text" 
-                                                        value={customItemName} 
-                                                        onChange={e => setCustomItemName(e.target.value)} 
-                                                        placeholder="e.g., Cleaning Spray" 
-                                                        className="mt-1 block w-full p-2 border border-gray-300 rounded-md" 
-                                                        list="custom-item-history"
-                                                    />
-                                                    <datalist id="custom-item-history">
-                                                        {customItemHistory.map((item, index) => (
-                                                            <option key={index} value={item} />
-                                                        ))}
-                                                    </datalist>
+                                                    <div className="relative">
+                                                        <input 
+                                                            type="text" 
+                                                            value={customItemName} 
+                                                            onChange={e => setCustomItemName(e.target.value)}
+                                                            onFocus={() => setShowCustomItemHistory(true)}
+                                                            onBlur={() => setTimeout(() => setShowCustomItemHistory(false), 200)}
+                                                            placeholder="e.g., Cleaning Spray" 
+                                                            className="mt-1 block w-full p-2 border border-gray-300 rounded-md" 
+                                                            autoComplete="off"
+                                                        />
+                                                        {showCustomItemHistory && customItemHistory.length > 0 && (
+                                                            <div className="absolute z-10 w-full bg-white border border-gray-200 rounded-md shadow-lg max-h-48 overflow-y-auto mt-1">
+                                                                {customItemHistory
+                                                                    .filter(h => h.toLowerCase().includes(customItemName.toLowerCase()))
+                                                                    .map((item) => (
+                                                                        <div key={item} className="flex justify-between items-center px-3 py-2 hover:bg-gray-100 group transition-colors">
+                                                                            <span 
+                                                                                className="flex-grow cursor-pointer text-sm text-gray-700"
+                                                                                onMouseDown={(e) => {
+                                                                                    e.preventDefault(); 
+                                                                                    setCustomItemName(item);
+                                                                                    setShowCustomItemHistory(false);
+                                                                                }}
+                                                                            >
+                                                                                {item}
+                                                                            </span>
+                                                                            <button
+                                                                                onMouseDown={(e) => {
+                                                                                    e.preventDefault(); 
+                                                                                    handleDeleteHistoryItem(item);
+                                                                                }}
+                                                                                className="text-gray-400 hover:text-red-500 p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                                                title="Remove from history"
+                                                                            >
+                                                                                <TrashIcon className="h-4 w-4" /> 
+                                                                            </button>
+                                                                        </div>
+                                                                    ))
+                                                                }
+                                                                {customItemHistory.filter(h => h.toLowerCase().includes(customItemName.toLowerCase())).length === 0 && (
+                                                                    <div className="px-3 py-2 text-xs text-gray-500 italic">No matches in history</div>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </div>
                                                 <div>
                                                     <div className="flex items-center gap-2">
@@ -793,9 +848,12 @@ const ManagerPortal: React.FC<ManagerPortalProps> = ({ user, onLogout }) => {
                                                     });
                                                     
                                                     return (
-                                                    <div key={date} className="pl-2 sm:pl-4 border-l-2 border-indigo-200">
-                                                        <h4 className="font-semibold text-gray-700 text-md mb-3 -ml-2 sm:-ml-4 pl-3 bg-gray-200/50 py-1 rounded-r-md">{formattedDate}</h4>
-                                                        <div className="space-y-3">
+                                                    <details key={date} className="pl-2 sm:pl-4 border-l-2 border-indigo-200 group/date">
+                                                        <summary className="font-semibold text-gray-700 text-md mb-3 -ml-2 sm:-ml-4 pl-3 bg-gray-200/50 py-1 rounded-r-md cursor-pointer list-none flex justify-between items-center">
+                                                            <span>{formattedDate} <span className="text-sm font-normal text-gray-500 ml-1">({ordersForDay.length} items)</span></span>
+                                                            <ChevronDownIcon className="h-5 w-5 text-gray-500 transition-transform group-open/date:rotate-180 pr-2" />
+                                                        </summary>
+                                                        <div className="space-y-3 pt-2 pb-4">
                                                             {ordersForDay.map(order => {
                                                                 const isLocked = (order.status || '').trim() !== 'Pending';
                                                                 const disabledButtonClasses = "text-gray-300 cursor-not-allowed";
@@ -837,7 +895,7 @@ const ManagerPortal: React.FC<ManagerPortalProps> = ({ user, onLogout }) => {
                                                                 );
                                                             })}
                                                         </div>
-                                                    </div>
+                                                    </details>
                                                 )})}
                                             </div>
                                         </details>

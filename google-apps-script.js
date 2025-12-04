@@ -30,7 +30,11 @@ const PERMISSIONS = {
   'Logistics': [
     'submitInventoryCount', 'saveDraftCount', 'submitWarehouseCount',
     'updateOrderStatus', 'deleteOrder', 'getUsers', 'getProductCategories',
-    'getAppSheetProducts'
+    'getAppSheetProducts',
+    // Added Product Management Permissions
+    'addAppSheetProduct', 'updateAppSheetProduct', 'deleteAppSheetProduct',
+    // Added Category Management & Daily Count Permissions
+    'addCategory', 'updateCategory', 'deleteCategory', 'updateDailyCountStatus'
   ],
   'Office': [
     'getUsers', 'getProductCategories', 'getAppSheetProducts' // Example read-only access

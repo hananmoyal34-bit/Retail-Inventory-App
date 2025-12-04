@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { AppSheetProduct, ProductCategory, Product } from '../types';
 import { getAppSheetProducts, getProductCategories, getProducts } from '../services/dataService';
-import { updateAppSheetProduct, updateDailyCountStatus, deleteAppSheetProduct } from '../services/writeService';
+import { updateAppSheetProduct, updateDailyCountStatus, deleteAppSheetProduct, addAppSheetProduct } from '../services/writeService';
 import CategoryManager from './CategoryManager';
 import Modal from './Modal';
-import { PencilIcon, ChevronDownIcon, ViewGridIcon, TableCellsIcon, SearchIcon, TrashIcon, LockClosedIcon, LockOpenIcon, XIcon } from './icons';
+import { PencilIcon, ChevronDownIcon, ViewGridIcon, TableCellsIcon, SearchIcon, TrashIcon, LockClosedIcon, LockOpenIcon, XIcon, PlusIcon } from './icons';
 import ConfirmationModal from './customer_service_hub/components/ConfirmationModal';
 
 type ViewMode = 'grouped' | 'table';
@@ -146,6 +146,20 @@ const ProductList: React.FC = () => {
     setSortConfig({ key, direction });
   };
 
+  const openModalForAdd = () => {
+    setEditingProduct(null);
+    setFormState({
+        name: '',
+        colors: [],
+        category: '',
+        subCategory: '',
+        lowStockThreshold: 10,
+    });
+    setError(null);
+    setIsNameColorEditable(true); // Always editable for new products
+    setColorInput('');
+    setIsModalOpen(true);
+  };
 
   const openModalForEdit = (product: AppSheetProduct) => {
     setEditingProduct(product);
@@ -202,21 +216,29 @@ const ProductList: React.FC = () => {
       setError('Product name cannot be empty.');
       return;
     }
-    if (!editingProduct) {
-      setError('Error: No product selected for editing.');
-      return;
-    }
+    
     setIsSubmitting(true);
     setError(null);
 
-    const result = await updateAppSheetProduct({
-        oldName: editingProduct.name,
-        name: formState.name,
-        colors: formState.colors.join(', '),
-        category: formState.category.trim(),
-        subCategory: formState.subCategory.trim(),
-        lowStockThreshold: Number(formState.lowStockThreshold) || 0,
-    });
+    let result;
+    if (editingProduct) {
+        result = await updateAppSheetProduct({
+            oldName: editingProduct.name,
+            name: formState.name,
+            colors: formState.colors.join(', '),
+            category: formState.category.trim(),
+            subCategory: formState.subCategory.trim(),
+            lowStockThreshold: Number(formState.lowStockThreshold) || 0,
+        });
+    } else {
+        result = await addAppSheetProduct({
+            name: formState.name,
+            colors: formState.colors, // array
+            category: formState.category.trim(),
+            subCategory: formState.subCategory.trim(),
+            lowStockThreshold: Number(formState.lowStockThreshold) || 0,
+        });
+    }
       
     setIsSubmitting(false);
     if (result.success) {
@@ -364,6 +386,15 @@ const ProductList: React.FC = () => {
             <h2 className="text-3xl font-bold text-gray-900">Product Management</h2>
             <p className="mt-1 text-gray-600">Edit products and manage categories.</p>
         </div>
+        {activeTab === 'products' && (
+            <button
+                onClick={openModalForAdd}
+                className="flex items-center justify-center bg-indigo-600 text-white px-4 py-2 rounded-md shadow-sm hover:bg-indigo-700 transition-colors w-full sm:w-auto"
+            >
+                <PlusIcon className="h-5 w-5 mr-2" />
+                Add Product
+            </button>
+        )}
       </div>
 
        <div className="border-b border-gray-200">
@@ -585,18 +616,20 @@ const ProductList: React.FC = () => {
         </div>
       )}
       
-      <Modal isOpen={isModalOpen} onClose={closeModal} title={editingProduct ? `Edit: ${editingProduct.name}` : 'Edit Product'}>
+      <Modal isOpen={isModalOpen} onClose={closeModal} title={editingProduct ? `Edit: ${editingProduct.name}` : 'Add Product'}>
         <div className="space-y-4">
             <div>
                 <div className="flex justify-between items-center">
                     <label htmlFor="name" className="block text-sm font-medium text-gray-700">Item Name</label>
-                    <button onClick={() => setIsNameColorEditable(p => !p)} className="p-1 rounded-full hover:bg-gray-100 text-gray-500" aria-label={isNameColorEditable ? 'Lock name and colors' : 'Unlock name and colors'}>
-                        {isNameColorEditable ? <LockOpenIcon className="h-5 w-5"/> : <LockClosedIcon className="h-5 w-5"/>}
-                    </button>
+                    {editingProduct && (
+                        <button onClick={() => setIsNameColorEditable(p => !p)} className="p-1 rounded-full hover:bg-gray-100 text-gray-500" aria-label={isNameColorEditable ? 'Lock name and colors' : 'Unlock name and colors'}>
+                            {isNameColorEditable ? <LockOpenIcon className="h-5 w-5"/> : <LockClosedIcon className="h-5 w-5"/>}
+                        </button>
+                    )}
                 </div>
                 <input type="text" id="name" name="name" value={formState.name} onChange={handleFormChange} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm disabled:bg-gray-100 disabled:text-gray-500" required disabled={!isNameColorEditable || isSubmitting} />
             </div>
-            {isNameColorEditable && (
+            {editingProduct && isNameColorEditable && (
                 <div className="p-3 bg-yellow-50 border-l-4 border-yellow-400 text-yellow-800 text-sm rounded-r-md">
                     <p><strong>Warning:</strong> Changing the Item Name or Colors will apply these changes across all systems where this product is used.</p>
                 </div>
