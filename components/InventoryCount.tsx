@@ -213,14 +213,16 @@ const InventoryCount: React.FC = () => {
     if (loading || products.length === 0 || !selectedLocation || !date) return;
     
     if(activeTab === 'count') {
-        const finalizedLogExists = countLogs.some(log => 
-            log.location === selectedLocation && formatDateToYMD(String(log.date)) === date
+        // FIX: Explicitly type the result of some and casting log.date to string to avoid unknown type comparison errors.
+        const finalizedLogExists: boolean = countLogs.some((log: CountLog) => 
+            log.location === selectedLocation && formatDateToYMD(log.date as string) === (date as string)
         );
         setIsFinalized(finalizedLogExists);
 
         if (finalizedLogExists) {
             const finalizedEntries = products.map((product: Product) => {
-                const log = countLogs.find(l => l.location === selectedLocation && formatDateToYMD(String(l.date)) === date && l.productName === product.productName);
+                // FIX: Added explicit type for find callback argument.
+                const log = countLogs.find((l: CountLog) => l.location === selectedLocation && formatDateToYMD(l.date as string) === (date as string) && l.productName === product.productName);
                 return {
                     productID: product.productID, productName: product.productName,
                     openingStock: log?.openingStock ?? 0, calculatedOpeningStock: 0,
@@ -232,10 +234,12 @@ const InventoryCount: React.FC = () => {
             setCountEntries(finalizedEntries);
             setDraftSaveStatus({ saving: false, lastSaved: null });
         } else {
-            const draftsForDay = draftCounts.filter(d => d.location === selectedLocation && formatDateToYMD(d.date) === date);
+            // FIX: Added explicit type for filter callback argument.
+            const draftsForDay = draftCounts.filter((d: DraftCount) => d.location === selectedLocation && formatDateToYMD(d.date as string) === (date as string));
             if (draftsForDay.length > 0) {
                 const draftEntries = products.map((product: Product) => {
-                    const draft = draftsForDay.find(d => d.productName === product.productName);
+                    // FIX: Ensure types for find and using cast for string comparison to resolve unknown type issues.
+                    const draft = draftsForDay.find((d: DraftCount) => (d.productName as string) === (product.productName as string));
                     const calculatedValue = openingStock.get(product.productName) || 0;
                     return {
                         productID: product.productID, productName: product.productName,
@@ -905,7 +909,7 @@ const InventoryCount: React.FC = () => {
                               <ChevronDownIcon className="h-6 w-6 text-gray-500 transform transition-transform duration-200 group-open:rotate-180" />
                           </summary>
                           <div className="p-2 space-y-1 bg-gray-50/50">
-                              {/* @FIX: Add explicit type casting for Object.entries to resolve 'unknown' type error on `productsInSubCategory`. */}
+                              {/* FIX: Explicitly type the result of Object.entries and adding cast for comparisons to resolve 'unknown' type errors. */}
                               {(Object.entries(subCategories) as [string, AppSheetProduct[]][]).map(([subCategory, productsInSubCategory]) => (
                                   <details key={`${category}-${subCategory}`} open={expandedSubCategories.has(`${category}|${subCategory}`)} onToggle={(e) => handleToggleSubCategory(category, subCategory, (e.target as HTMLDetailsElement).open)} className="group/sub">
                                       <summary className="px-2 py-2 text-md font-medium text-gray-700 cursor-pointer list-none flex justify-between items-center hover:bg-gray-200/50 rounded-md transition-colors">

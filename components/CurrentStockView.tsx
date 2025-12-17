@@ -182,7 +182,7 @@ const CurrentStockView: React.FC = () => {
             acc[category].push(product);
             acc[category].sort((a, b) => a.productName.localeCompare(b.productName));
             return acc;
-// @FIx: Explicitly type the initial value of reduce to avoid type inference issues.
+// @FIX: Explicitly type the initial value of reduce to avoid type inference issues.
         }, {} as Record<string, WarehouseStockProduct[]>);
         
         // FIX: Explicitly type the accumulator to ensure correct type inference downstream.
@@ -191,7 +191,7 @@ const CurrentStockView: React.FC = () => {
             obj[key] = groupedByCategory[key]; 
             return obj;
           }, 
-// @FIx: Explicitly type the initial value of reduce to avoid type inference issues.
+// @FIX: Explicitly type the initial value of reduce to avoid type inference issues.
           {} as Record<string, WarehouseStockProduct[]>
         );
 
@@ -289,7 +289,7 @@ const CurrentStockView: React.FC = () => {
       
       {activeTab === 'locations' && (
         <div className="space-y-4 pt-4">
-            {Object.keys(groupedStock).length > 0 ? Object.entries(groupedStock).map(([location, products]) => (
+            {Object.keys(groupedStock).length > 0 ? (Object.entries(groupedStock) as [string, { productName: string; stock: number; }[]][]).map(([location, products]) => (
             <details key={location} className="bg-white shadow-lg rounded-xl overflow-hidden group transition-all duration-300">
                 <summary className="px-6 py-4 text-xl font-semibold text-gray-800 cursor-pointer list-none flex justify-between items-center hover:bg-gray-50 transition-colors">
                 <div className="flex items-center gap-4">
@@ -343,15 +343,15 @@ const CurrentStockView: React.FC = () => {
                     </span>
                 </summary>
                 <div className="p-2 space-y-2 bg-gray-50">
-                    {/* FIX: Explicitly type product in map callback */}
-                    {products.map((product: WarehouseStockProduct) => (
+                    {/* FIX: Cast result of products.map arguments to resolve unknown type errors when accessing colors. */}
+                    {(products as WarehouseStockProduct[]).map((product: WarehouseStockProduct) => (
                         <details key={product.productName} className="bg-white shadow-lg rounded-xl overflow-hidden group/product transition-all duration-300">
                             <summary className="px-6 py-4 text-lg font-semibold text-gray-800 cursor-pointer list-none flex justify-between items-center hover:bg-gray-50 transition-colors">
                                 <div className="flex items-center gap-4">
                                     <span className="text-indigo-700">{product.productName}</span>
                                 </div>
                                 <div className="flex items-center gap-4">
-                                     <span className="text-gray-500 text-base font-normal">({product.totalStock} units / {product.colors.length} colors)</span>
+                                     <span className="text-gray-500 text-base font-normal">({product.totalStock} units / {(product.colors as any[]).length} colors)</span>
                                     <span className="text-indigo-600">
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 transform transition-transform duration-200 group-open/product:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -366,8 +366,8 @@ const CurrentStockView: React.FC = () => {
                                         {product.totalStock}
                                     </span>
                                 </div>
-                                {/* FIX: Add specific type for item to resolve 'any' type. */}
-                                {product.colors.map((item: { color: string; quantity: number }) => {
+                                {/* FIX: Add explicit cast to colors array to resolve 'unknown' map error. */}
+                                {(product.colors as any[]).map((item: { color: string; quantity: number }) => {
                                     const stockLevelClasses = 
                                         item.quantity <= 0 
                                         ? 'bg-red-100 text-red-800'
@@ -420,50 +420,4 @@ const CurrentStockView: React.FC = () => {
                   <div>
                     <button 
                       onClick={clearFilters}
-                      className="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 transition-colors"
-                    >
-                      Clear Filters
-                    </button>
-                  </div>
-                </div>
-            </div>
-
-            <div className="bg-white shadow-md rounded-lg overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                        <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product Name</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock In (+)</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">In-Store Sales (SOLD)</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                        {summaryData.length > 0 ? summaryData.map((row, index) => (
-                            <tr key={index} className="odd:bg-white even:bg-gray-50">
-                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{row.productName}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-semibold">{row.stockIn > 0 ? `+${row.stockIn}`: row.stockIn}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600 font-semibold">{row.inStoreSales}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                                  <LocationTag location={row.location} />
-                                </td>
-                            </tr>
-                        )) : (
-                            <tr>
-                                <td colSpan={4} className="text-center py-10 text-gray-500">
-                                    No data available for the selected filters.
-                                </td>
-                            </tr>
-                        )}
-                    </tbody>
-                </table>
-              </div>
-            </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-export default CurrentStockView;
+                      className="w-full px-4 py-2 text

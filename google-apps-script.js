@@ -33,7 +33,7 @@ const PERMISSIONS = {
     'updateOrderStatus', 'deleteOrder', 'getUsers', 'getProductCategories',
     'getAppSheetProducts',
     // Added Product Management Permissions
-    'addAppSheetProduct', 'updateAppSheetProduct', 'deleteAppSheetProduct',
+    'addAppSheetProduct', 'updateAppSheetProduct', 'deleteAppSheetProduct', 'updateProductStatus',
     // Added Category Management & Daily Count Permissions
     'addCategory', 'updateCategory', 'deleteCategory', 'updateDailyCountStatus',
     'addProduct', 'updateProduct'
@@ -126,6 +126,7 @@ function routeAction(action, payload) {
       case 'updateDailyCountStatus': return handleUpdateDailyCountStatus(payload);
       case 'addAppSheetProduct': return handleAddAppSheetProduct(payload);
       case 'updateAppSheetProduct': return handleUpdateAppSheetProduct(payload);
+      case 'updateProductStatus': return handleUpdateProductStatus(payload);
       case 'deleteAppSheetProduct': return handleDeleteAppSheetProduct(payload);
       case 'addAccount': return handleAddAccount(payload);
       case 'updateAccount': return handleUpdateAccount(payload);
@@ -406,9 +407,7 @@ function updateDraftCountStockIn(location, productName, quantityToAdd) {
   for (let i = 1; i < data.length; i++) {
     const row = data[i], rowDate = new Date(row[2]).toISOString().slice(0, 10);
     if (rowDate === todayYMD && row[1] === location && row[3] === productName) {
-      const stockInCol = 5;
-      const current = Number(row[stockInCol]) || 0;
-      sheet.getRange(i + 1, stockInCol + 1).setValue(current + Number(quantityToAdd));
+      // If a draft row exists, do nothing (return without updating).
       return;
     }
   }
@@ -440,6 +439,25 @@ function handleUpdateOrderStatus(payload) {
         const orderQuantity = (status === 'Partial' && quantity != null) ? quantity : rowInfo.rowData[h.indexOf('Quantity')];
         updateDraftCountStockIn(rowInfo.rowData[h.indexOf('Location')], productName, orderQuantity);
       }
+    }
+  }
+  
+  // New Logic: If marking as "Out of Stock", update the product list
+  if (status === 'Out of Stock') {
+    try {
+        const prodSheet = getSheet(SHEET_NAMES.productsListAppsheet);
+        const itemName = rowInfo.rowData[h.indexOf('Item')];
+        // Note: Using 'Items' as key column in PRODUCTS_LIST_APPSHEET based on typical structure
+        const prodRow = findRowById(prodSheet, itemName, 'Items');
+        if (prodRow) {
+             const activeCol = prodRow.headers.findIndex(h => h.toLowerCase() === 'isactive' || h.toLowerCase() === 'status');
+             if (activeCol !== -1) {
+                 prodSheet.getRange(prodRow.rowIndex, activeCol + 1).setValue(false);
+             }
+        }
+    } catch (e) {
+        // Silently fail if product list update fails, or log it
+        Logger.log('Could not automatically set product to inactive: ' + e.toString());
     }
   }
   
@@ -605,7 +623,9 @@ function handleAddAppSheetProduct(payload) {
   if (findRowById(sheet, payload.name, 'Items')) {
     throw new Error(`A product with the name '${payload.name}' already exists.`);
   }
-  sheet.appendRow([payload.name, payload.colors, payload.category, payload.subCategory, payload.lowStockThreshold]);
+  // Use payload.isActive if provided, default to true
+  const isActive = payload.isActive !== undefined ? payload.isActive : true;
+  sheet.appendRow([payload.name, payload.colors, payload.category, payload.subCategory, payload.lowStockThreshold, isActive]);
   return { status: 'success', message: 'Product added.' };
 }
 function handleUpdateAppSheetProduct(payload) {
@@ -627,7 +647,29 @@ function handleUpdateAppSheetProduct(payload) {
   sheet.getRange(rowInfo.rowIndex, h.indexOf('Category') + 1).setValue(payload.category);
   sheet.getRange(rowInfo.rowIndex, h.indexOf('Sub-Category') + 1).setValue(payload.subCategory);
   sheet.getRange(rowInfo.rowIndex, h.indexOf('Low Stock Threshold') + 1).setValue(payload.lowStockThreshold);
+  
+  // Update isActive column if it exists
+  const activeCol = h.findIndex(col => col.toLowerCase() === 'isactive' || col.toLowerCase() === 'status');
+  if (activeCol !== -1 && payload.isActive !== undefined) {
+      sheet.getRange(rowInfo.rowIndex, activeCol + 1).setValue(payload.isActive);
+  }
+
   return { status: 'success', message: 'Product updated.' };
+}
+
+function handleUpdateProductStatus(payload) {
+    const sheet = getSheet(SHEET_NAMES.productsListAppsheet);
+    const rowInfo = findRowById(sheet, payload.productName, 'Items');
+    if (!rowInfo) throw new Error("Product not found.");
+    
+    // Find IsActive column. Fallback to search if index 5 logic isn't reliable, but usually headers work
+    let activeCol = rowInfo.headers.findIndex(h => h.toLowerCase() === 'isactive' || h.toLowerCase() === 'status');
+    if (activeCol === -1) {
+        throw new Error("IsActive column not found in PRODUCTS_LIST_APPSHEET.");
+    }
+    
+    sheet.getRange(rowInfo.rowIndex, activeCol + 1).setValue(payload.isActive);
+    return { status: 'success', message: `Product status updated to ${payload.isActive ? 'Active' : 'Out of Stock'}.` };
 }
 
 function handleDeleteAppSheetProduct(payload) {
@@ -684,6 +726,16 @@ function handleGetAppSheetProducts() {
   if (data.length <= 1) return { status: 'success', data: [] };
   const headers = data.shift();
   const [nameIdx, colorsIdx, catIdx, subCatIdx, lowStockIdx] = ['Items', 'Colors', 'Category', 'Sub-Category', 'Low Stock Threshold'].map(h => headers.indexOf(h));
+  // Look for IsActive column, default to last or search
+  const activeIdx = headers.findIndex(h => h.toLowerCase() === 'isactive' || h.toLowerCase() === 'status' || h.toLowerCase() === 'active');
+
   if ([nameIdx, colorsIdx, catIdx, subCatIdx, lowStockIdx].includes(-1)) throw new Error('Missing AppSheet product columns.');
-  return { status: 'success', data: data.map(r => ({ name: r[nameIdx], colors: String(r[colorsIdx] || '').split(',').map(c=>c.trim()).filter(Boolean), category: r[catIdx] || '', subCategory: r[subCatIdx] || '', lowStockThreshold: parseInt(String(r[lowStockIdx] || '10'), 10) || 10 })).filter(p => p.name) };
+  return { status: 'success', data: data.map(r => ({ 
+      name: r[nameIdx], 
+      colors: String(r[colorsIdx] || '').split(',').map(c=>c.trim()).filter(Boolean), 
+      category: r[catIdx] || '', 
+      subCategory: r[subCatIdx] || '', 
+      lowStockThreshold: parseInt(String(r[lowStockIdx] || '10'), 10) || 10,
+      isActive: activeIdx !== -1 ? String(r[activeIdx]).toLowerCase() !== 'false' : true 
+  })).filter(p => p.name) };
 }

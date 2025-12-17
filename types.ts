@@ -1,3 +1,4 @@
+
 export enum Page {
   DASHBOARD = 'DASHBOARD',
   PRODUCTS = 'PRODUCTS',
@@ -32,6 +33,7 @@ export interface AppSheetProduct {
   subCategory: string;
   lowStockThreshold: number;
   onDailyCount?: boolean;
+  isActive?: boolean;
 }
 
 export interface ProductCategory {

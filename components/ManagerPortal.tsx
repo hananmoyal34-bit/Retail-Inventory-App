@@ -369,6 +369,7 @@ const ManagerPortal: React.FC<ManagerPortalProps> = ({ user, onLogout }) => {
         const lowercasedQuery = searchQuery.toLowerCase();
 
         appSheetProducts
+            .filter(p => p.isActive !== false) // Exclude inactive products
             .filter(p => p.name.toLowerCase().includes(lowercasedQuery))
             .forEach(p => {
                 const category = p.category || 'Uncategorized';
@@ -684,7 +685,7 @@ const ManagerPortal: React.FC<ManagerPortalProps> = ({ user, onLogout }) => {
                                                                     ))}
                                                                 </div>
                                                             </details>
-                                                        )) : <p className="text-center text-gray-500 p-4">No products found.</p>}
+                                                        )) : <p className="text-center text-gray-500 p-4">{searchQuery ? "No products found." : "No products available."}</p>}
                                                     </div>
                                                 </div>
                                             </div>

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { LocationOrder, Location, User } from '../types';
 import { getLocationOrders, getLocations, getUsers, formatDateToYMD, formatToLocaleString } from '../services/dataService';
@@ -56,6 +57,9 @@ const Orders: React.FC = () => {
   // State for delete modal
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [orderToDelete, setOrderToDelete] = useState<LocationOrder | null>(null);
+  
+  // State for Out of Stock warning
+  const [isOutOfStockWarningOpen, setIsOutOfStockWarningOpen] = useState(false);
 
   // State for bulk selection
   const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set());
@@ -236,10 +240,20 @@ const Orders: React.FC = () => {
     setIsSubmitting(false);
   };
 
+  const handleSaveChangesClick = () => {
+      if (newStatus === 'Out of Stock') {
+          setIsOutOfStockWarningOpen(true);
+      } else {
+          handleSaveChanges();
+      }
+  }
+
   const handleSaveChanges = async () => {
     if (!editingOrder) return;
     setIsSubmitting(true);
     setSubmissionError('');
+    // If confirmation modal was open, close it
+    setIsOutOfStockWarningOpen(false);
 
     const payload: { orderID: string; status: string; officeNotes: string; quantity?: number } = {
         orderID: editingOrder.orderID,
@@ -721,7 +735,7 @@ const Orders: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={handleSaveChanges}
+                onClick={handleSaveChangesClick}
                 disabled={isSubmitting}
                 className="bg-indigo-600 text-white px-6 py-2 rounded-md shadow-sm hover:bg-indigo-700 disabled:bg-indigo-400"
               >
@@ -740,6 +754,17 @@ const Orders: React.FC = () => {
         message={`Are you sure you want to delete this order item (${orderToDelete?.item})? This action cannot be undone.`}
         isConfirming={isSubmitting}
         confirmText="Delete"
+      />
+      
+      {/* Out of Stock Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={isOutOfStockWarningOpen}
+        onClose={() => setIsOutOfStockWarningOpen(false)}
+        onConfirm={handleSaveChanges}
+        title="Mark as Out of Stock?"
+        message={`Marking this order as "Out of Stock" will also update the product status to "Out of Stock" in the main product list, preventing Managers from ordering it until it is reactivated. Do you want to proceed?`}
+        isConfirming={isSubmitting}
+        confirmText="Yes, Mark Out of Stock"
       />
       
       {selectedOrders.size > 0 && (

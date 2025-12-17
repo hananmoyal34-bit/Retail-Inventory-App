@@ -203,7 +203,8 @@ export const fetchAppSheetProducts = async (): Promise<AppSheetProduct[]> => {
   if (result.success && Array.isArray(result.data)) {
     return result.data.map((p: any) => ({
       ...p,
-      lowStockThreshold: Number(p.lowStockThreshold) || 10
+      lowStockThreshold: Number(p.lowStockThreshold) || 10,
+      isActive: p.isActive !== false // ensure boolean
     }));
   }
   console.error("Failed to fetch AppSheet products from script:", result.message);
@@ -257,8 +258,12 @@ export const addAppSheetProduct = async (product: AppSheetProduct): Promise<{ su
   return postToAppsScript({ action: 'addAppSheetProduct', ...payload });
 };
 
-export const updateAppSheetProduct = async (product: { oldName: string, name: string, colors: string, category: string, subCategory: string, lowStockThreshold: number }): Promise<{ success: boolean; message: string }> => {
+export const updateAppSheetProduct = async (product: { oldName: string, name: string, colors: string, category: string, subCategory: string, lowStockThreshold: number, isActive: boolean }): Promise<{ success: boolean; message: string }> => {
   return postToAppsScript({ action: 'updateAppSheetProduct', ...product });
+};
+
+export const updateProductStatus = async (productName: string, isActive: boolean): Promise<{ success: boolean; message: string }> => {
+    return postToAppsScript({ action: 'updateProductStatus', productName, isActive });
 };
 
 export const deleteAppSheetProduct = async (productName: string): Promise<{ success: boolean; message: string }> => {

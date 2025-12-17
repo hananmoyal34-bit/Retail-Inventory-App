@@ -1,10 +1,11 @@
+
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { AppSheetProduct, ProductCategory, Product } from '../types';
 import { getAppSheetProducts, getProductCategories, getProducts } from '../services/dataService';
-import { updateAppSheetProduct, updateDailyCountStatus, deleteAppSheetProduct, addAppSheetProduct } from '../services/writeService';
+import { updateAppSheetProduct, updateDailyCountStatus, deleteAppSheetProduct, addAppSheetProduct, updateProductStatus } from '../services/writeService';
 import CategoryManager from './CategoryManager';
 import Modal from './Modal';
-import { PencilIcon, ChevronDownIcon, ViewGridIcon, TableCellsIcon, SearchIcon, TrashIcon, LockClosedIcon, LockOpenIcon, XIcon, PlusIcon } from './icons';
+import { PencilIcon, ChevronDownIcon, ViewGridIcon, TableCellsIcon, SearchIcon, TrashIcon, LockClosedIcon, LockOpenIcon, XIcon, PlusIcon, CheckCircleIcon, XCircleIcon } from './icons';
 import ConfirmationModal from './customer_service_hub/components/ConfirmationModal';
 
 type ViewMode = 'grouped' | 'table';
@@ -19,6 +20,7 @@ const ProductList: React.FC = () => {
   const [viewMode, setViewMode] = useState<ViewMode>('grouped');
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'asc' | 'desc' }>({ key: 'name', direction: 'asc' });
   const [searchQuery, setSearchQuery] = useState('');
+  const [showInactive, setShowInactive] = useState(false);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<AppSheetProduct | null>(null);
@@ -28,6 +30,7 @@ const ProductList: React.FC = () => {
     category: '',
     subCategory: '',
     lowStockThreshold: 10,
+    isActive: true,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,6 +44,7 @@ const ProductList: React.FC = () => {
   const [expandedSubCategories, setExpandedSubCategories] = useState<Set<string>>(new Set());
 
   const [updatingDailyCount, setUpdatingDailyCount] = useState<Set<string>>(new Set());
+  const [updatingStatus, setUpdatingStatus] = useState<Set<string>>(new Set());
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -88,13 +92,23 @@ const ProductList: React.FC = () => {
   }, [productCategories]);
 
   const filteredProducts = useMemo(() => {
-    if (!searchQuery.trim()) {
-      return appSheetProducts;
+    let products = appSheetProducts;
+    
+    // Filter out inactive if toggle is off
+    if (!showInactive) {
+        products = products.filter(p => p.isActive !== false);
+    } else {
+        // If showing inactive, prioritize showing ONLY inactive
+        products = products.filter(p => p.isActive === false);
     }
-    return appSheetProducts.filter(product =>
+
+    if (!searchQuery.trim()) {
+      return products;
+    }
+    return products.filter(product =>
       product.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
-  }, [appSheetProducts, searchQuery]);
+  }, [appSheetProducts, searchQuery, showInactive]);
 
   const groupedProducts = useMemo(() => {
     const grouped: { [category: string]: { [subCategory: string]: AppSheetProduct[] } } = {};
@@ -154,6 +168,7 @@ const ProductList: React.FC = () => {
         category: '',
         subCategory: '',
         lowStockThreshold: 10,
+        isActive: true,
     });
     setError(null);
     setIsNameColorEditable(true); // Always editable for new products
@@ -169,6 +184,7 @@ const ProductList: React.FC = () => {
       category: product.category,
       subCategory: product.subCategory,
       lowStockThreshold: product.lowStockThreshold,
+      isActive: product.isActive !== false,
     });
     setError(null);
     setIsNameColorEditable(false);
@@ -182,8 +198,13 @@ const ProductList: React.FC = () => {
   };
 
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setFormState(prev => ({ ...prev, [name]: value }));
+    const { name, value, type } = e.target as HTMLInputElement;
+    if (type === 'checkbox') {
+        const { checked } = e.target as HTMLInputElement;
+        setFormState(prev => ({ ...prev, [name]: checked }));
+    } else {
+        setFormState(prev => ({ ...prev, [name]: value }));
+    }
   }
 
   const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -197,12 +218,12 @@ const ProductList: React.FC = () => {
 
   const handleColorInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' || e.key === ',') {
-        e.preventDefault();
-        const newColor = colorInput.trim();
-        if (newColor && !formState.colors.map(c => c.toLowerCase()).includes(newColor.toLowerCase())) {
-            setFormState(prev => ({...prev, colors: [...prev.colors, newColor]}));
-        }
-        setColorInput('');
+      e.preventDefault();
+      const newColor = colorInput.trim();
+      if (newColor && !formState.colors.map(c => c.toLowerCase()).includes(newColor.toLowerCase())) {
+          setFormState(prev => ({...prev, colors: [...prev.colors, newColor]}));
+      }
+      setColorInput('');
     }
   };
 
@@ -229,6 +250,7 @@ const ProductList: React.FC = () => {
             category: formState.category.trim(),
             subCategory: formState.subCategory.trim(),
             lowStockThreshold: Number(formState.lowStockThreshold) || 0,
+            isActive: formState.isActive,
         });
     } else {
         result = await addAppSheetProduct({
@@ -237,6 +259,7 @@ const ProductList: React.FC = () => {
             category: formState.category.trim(),
             subCategory: formState.subCategory.trim(),
             lowStockThreshold: Number(formState.lowStockThreshold) || 0,
+            isActive: formState.isActive,
         });
     }
       
@@ -296,6 +319,28 @@ const ProductList: React.FC = () => {
         newSet.delete(productName);
         return newSet;
     });
+  };
+
+  const handleToggleProductStatus = async (product: AppSheetProduct) => {
+      setUpdatingStatus(prev => new Set(prev).add(product.name));
+      const newStatus = !product.isActive;
+      
+      // Optimistic update
+      setAppSheetProducts(prev => prev.map(p => p.name === product.name ? { ...p, isActive: newStatus } : p));
+
+      const result = await updateProductStatus(product.name, newStatus);
+      
+      if (!result.success) {
+          // Revert on failure
+          setAppSheetProducts(prev => prev.map(p => p.name === product.name ? { ...p, isActive: !newStatus } : p));
+          alert(`Failed to update status: ${result.message}`);
+      }
+      
+      setUpdatingStatus(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(product.name);
+          return newSet;
+      });
   };
 
 
@@ -408,34 +453,45 @@ const ProductList: React.FC = () => {
         <CategoryManager />
       ) : (
         <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-                <div className="relative w-full sm:max-w-xs">
+            <div className="flex flex-col lg:flex-row justify-between items-center gap-4">
+                <div className="relative w-full lg:max-w-xs">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                         <SearchIcon className="h-5 w-5 text-gray-400" />
                     </div>
                     <input
                         type="search"
-                        placeholder="Search products by name..."
+                        placeholder="Search products..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                         aria-label="Search products"
                     />
                 </div>
-                <div className="flex items-center space-x-2 flex-shrink-0">
-                  <button 
-                    onClick={() => setViewMode(prev => prev === 'grouped' ? 'table' : 'grouped')} 
-                    className="flex items-center px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-100 rounded-md hover:bg-indigo-200"
-                  >
-                    {viewMode === 'grouped' ? <TableCellsIcon className="h-4 w-4 mr-1.5" /> : <ViewGridIcon className="h-4 w-4 mr-1.5" />}
-                    <span>{viewMode === 'grouped' ? 'Table View' : 'Grouped View'}</span>
-                  </button>
-                  {viewMode === 'grouped' && (
-                      <>
-                          <button onClick={handleExpandAll} className="px-3 py-1 text-xs font-medium text-indigo-700 bg-indigo-100 rounded-md">Expand All</button>
-                          <button onClick={handleCollapseAll} className="px-3 py-1 text-xs font-medium text-gray-700 bg-gray-200 rounded-md">Collapse All</button>
-                      </>
-                  )}
+                <div className="flex items-center space-x-4 w-full lg:w-auto justify-between lg:justify-end">
+                    <label className="flex items-center space-x-2 cursor-pointer bg-white px-3 py-1.5 rounded-md border shadow-sm">
+                        <input 
+                            type="checkbox" 
+                            checked={showInactive} 
+                            onChange={(e) => setShowInactive(e.target.checked)} 
+                            className="form-checkbox h-4 w-4 text-indigo-600 transition duration-150 ease-in-out" 
+                        />
+                        <span className="text-sm font-medium text-gray-700">Show Out of Stock Only</span>
+                    </label>
+                    <div className="flex items-center space-x-2">
+                        <button 
+                            onClick={() => setViewMode(prev => prev === 'grouped' ? 'table' : 'grouped')} 
+                            className="flex items-center px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-100 rounded-md hover:bg-indigo-200"
+                        >
+                            {viewMode === 'grouped' ? <TableCellsIcon className="h-4 w-4 mr-1.5" /> : <ViewGridIcon className="h-4 w-4 mr-1.5" />}
+                            <span>{viewMode === 'grouped' ? 'Table View' : 'Grouped View'}</span>
+                        </button>
+                        {viewMode === 'grouped' && (
+                            <>
+                                <button onClick={handleExpandAll} className="px-3 py-1 text-xs font-medium text-indigo-700 bg-indigo-100 rounded-md">Expand All</button>
+                                <button onClick={handleCollapseAll} className="px-3 py-1 text-xs font-medium text-gray-700 bg-gray-200 rounded-md">Collapse All</button>
+                            </>
+                        )}
+                    </div>
                 </div>
             </div>
 
@@ -457,10 +513,13 @@ const ProductList: React.FC = () => {
                                         </summary>
                                         <div className="pl-4 pt-2 space-y-3">
                                             {products.map(product => (
-                                                <div key={product.name} className="bg-white rounded-lg shadow-sm overflow-hidden border">
+                                                <div key={product.name} className={`bg-white rounded-lg shadow-sm overflow-hidden border ${product.isActive === false ? 'border-red-300 bg-red-50' : ''}`}>
                                                     <div className="p-4 space-y-3">
                                                         <div className="flex justify-between items-start">
-                                                            <h3 className="font-bold text-gray-800 flex-1 pr-2">{product.name}</h3>
+                                                            <h3 className="font-bold text-gray-800 flex-1 pr-2">
+                                                                {product.name}
+                                                                {product.isActive === false && <span className="ml-2 px-2 py-0.5 text-xs font-bold bg-red-200 text-red-800 rounded">OUT OF STOCK</span>}
+                                                            </h3>
                                                             <div className="flex items-center space-x-1 flex-shrink-0">
                                                               <button onClick={() => openModalForEdit(product)} className="p-2 text-indigo-600 hover:bg-indigo-100 rounded-full"><PencilIcon className="h-5 w-5" /></button>
                                                               <button onClick={() => handleOpenDeleteModal(product)} className="p-2 text-red-600 hover:bg-red-100 rounded-full"><TrashIcon className="h-5 w-5" /></button>
@@ -472,25 +531,36 @@ const ProductList: React.FC = () => {
                                                                 {product.colors.map(color => <span key={color} className="px-2 py-1 text-xs rounded-full bg-gray-200 text-gray-800">{color}</span>)}
                                                             </div>
                                                         </div>
-                                                        <div className="flex justify-between items-center pt-2 border-t">
+                                                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center pt-2 border-t gap-2">
                                                             <div className="text-sm">
                                                                 <span className="font-medium text-gray-500">Low Stock At:</span> {product.lowStockThreshold}
                                                             </div>
-                                                            <label htmlFor={`daily-count-grouped-${product.name}`} className="flex items-center space-x-2 cursor-pointer">
-                                                                <span className="text-sm font-medium text-gray-600">On Daily Count</span>
-                                                                <div className="relative">
-                                                                    <input
-                                                                        id={`daily-count-grouped-${product.name}`}
-                                                                        type="checkbox"
-                                                                        className="sr-only"
-                                                                        checked={dailyCountProductNames.has(product.name)}
-                                                                        onChange={() => handleToggleDailyCount(product.name, !dailyCountProductNames.has(product.name))}
-                                                                        disabled={updatingDailyCount.has(product.name)}
-                                                                    />
-                                                                    <div className={`block w-10 h-6 rounded-full transition-colors ${dailyCountProductNames.has(product.name) ? 'bg-indigo-600' : 'bg-gray-300'}`}></div>
-                                                                    <div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${dailyCountProductNames.has(product.name) ? 'translate-x-4' : ''}`}></div>
-                                                                </div>
-                                                            </label>
+                                                            <div className="flex items-center gap-4">
+                                                                <button 
+                                                                    onClick={() => handleToggleProductStatus(product)} 
+                                                                    disabled={updatingStatus.has(product.name)}
+                                                                    className={`flex items-center px-3 py-1 rounded text-xs font-bold transition-colors ${product.isActive !== false ? 'bg-green-100 text-green-800 hover:bg-green-200' : 'bg-red-100 text-red-800 hover:bg-red-200'}`}
+                                                                >
+                                                                    {product.isActive !== false ? <CheckCircleIcon className="h-4 w-4 mr-1" /> : <XCircleIcon className="h-4 w-4 mr-1" />}
+                                                                    {product.isActive !== false ? 'Active' : 'Restock Item'}
+                                                                </button>
+                                                                
+                                                                <label htmlFor={`daily-count-grouped-${product.name}`} className="flex items-center space-x-2 cursor-pointer">
+                                                                    <span className="text-sm font-medium text-gray-600">On Daily Count</span>
+                                                                    <div className="relative">
+                                                                        <input
+                                                                            id={`daily-count-grouped-${product.name}`}
+                                                                            type="checkbox"
+                                                                            className="sr-only"
+                                                                            checked={dailyCountProductNames.has(product.name)}
+                                                                            onChange={() => handleToggleDailyCount(product.name, !dailyCountProductNames.has(product.name))}
+                                                                            disabled={updatingDailyCount.has(product.name)}
+                                                                        />
+                                                                        <div className={`block w-10 h-6 rounded-full transition-colors ${dailyCountProductNames.has(product.name) ? 'bg-indigo-600' : 'bg-gray-300'}`}></div>
+                                                                        <div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${dailyCountProductNames.has(product.name) ? 'translate-x-4' : ''}`}></div>
+                                                                    </div>
+                                                                </label>
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -503,7 +573,7 @@ const ProductList: React.FC = () => {
                     </details>
                 )) : (
                      <div className="text-center py-10 text-gray-500 bg-white rounded-lg shadow-md">
-                        <p>{searchQuery ? `No products found for "${searchQuery}".` : 'No products found.'}</p>
+                        <p>{searchQuery ? `No products found matching "${searchQuery}".` : 'No products found.'}</p>
                     </div>
                 )
             )}
@@ -519,13 +589,14 @@ const ProductList: React.FC = () => {
                                     <SortableHeader sortKey="category" label="Category" />
                                     <SortableHeader sortKey="subCategory" label="Sub-Category" />
                                     <SortableHeader sortKey="lowStockThreshold" label="Low Stock At" />
+                                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">On Daily Count</th>
                                     <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-200">
                                 {sortedProducts.length > 0 ? sortedProducts.map(product => (
-                                    <tr key={product.name} className="odd:bg-white even:bg-gray-50">
+                                    <tr key={product.name} className={`odd:bg-white even:bg-gray-50 ${product.isActive === false ? 'bg-red-50' : ''}`}>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <p className="text-sm font-medium text-gray-900">{product.name}</p>
                                             <div className="flex flex-wrap gap-1 mt-1">
@@ -535,6 +606,15 @@ const ProductList: React.FC = () => {
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{product.category}</td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{product.subCategory}</td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{product.lowStockThreshold}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <button 
+                                                onClick={() => handleToggleProductStatus(product)} 
+                                                disabled={updatingStatus.has(product.name)}
+                                                className={`flex items-center px-2 py-1 rounded text-xs font-bold transition-colors ${product.isActive !== false ? 'bg-green-100 text-green-800 hover:bg-green-200' : 'bg-red-100 text-red-800 hover:bg-red-200'}`}
+                                            >
+                                                {product.isActive !== false ? 'Active' : 'Out of Stock'}
+                                            </button>
+                                        </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <label htmlFor={`daily-count-table-${product.name}`} className="flex items-center cursor-pointer">
                                                 <div className="relative">
@@ -558,8 +638,8 @@ const ProductList: React.FC = () => {
                                     </tr>
                                 )) : (
                                   <tr>
-                                    <td colSpan={6} className="px-6 py-10 text-center text-gray-500">
-                                      {searchQuery ? `No products found for "${searchQuery}".` : 'No products found.'}
+                                    <td colSpan={7} className="px-6 py-10 text-center text-gray-500">
+                                      {searchQuery ? `No products found matching "${searchQuery}".` : 'No products found.'}
                                     </td>
                                   </tr>
                                 )}
@@ -569,9 +649,12 @@ const ProductList: React.FC = () => {
                  </div>
                  <div className="md:hidden space-y-3">
                     {sortedProducts.length > 0 ? sortedProducts.map(product => (
-                        <div key={product.name} className="bg-white rounded-lg shadow-sm overflow-hidden border p-4 space-y-3">
+                        <div key={product.name} className={`bg-white rounded-lg shadow-sm overflow-hidden border p-4 space-y-3 ${product.isActive === false ? 'border-red-300 bg-red-50' : ''}`}>
                             <div className="flex justify-between items-start">
-                                <h3 className="font-bold text-gray-800 flex-1 pr-2">{product.name}</h3>
+                                <h3 className="font-bold text-gray-800 flex-1 pr-2">
+                                    {product.name}
+                                    {product.isActive === false && <span className="ml-2 px-2 py-0.5 text-xs font-bold bg-red-200 text-red-800 rounded">OUT OF STOCK</span>}
+                                </h3>
                                 <div className="flex items-center space-x-1 flex-shrink-0">
                                     <button onClick={() => openModalForEdit(product)} className="p-2 text-indigo-600 hover:bg-indigo-100 rounded-full"><PencilIcon className="h-5 w-5" /></button>
                                     <button onClick={() => handleOpenDeleteModal(product)} className="p-2 text-red-600 hover:bg-red-100 rounded-full"><TrashIcon className="h-5 w-5" /></button>
@@ -587,7 +670,15 @@ const ProductList: React.FC = () => {
                                     </div>
                                 </div>
                             </div>
-                            <div className="flex justify-end items-center pt-3 border-t">
+                            <div className="flex justify-between items-center pt-3 border-t">
+                                <button 
+                                    onClick={() => handleToggleProductStatus(product)} 
+                                    disabled={updatingStatus.has(product.name)}
+                                    className={`flex items-center px-3 py-1 rounded text-xs font-bold transition-colors ${product.isActive !== false ? 'bg-green-100 text-green-800 hover:bg-green-200' : 'bg-red-100 text-red-800 hover:bg-red-200'}`}
+                                >
+                                    {product.isActive !== false ? 'Active' : 'Restock'}
+                                </button>
+                                
                                 <label htmlFor={`daily-count-mobile-${product.name}`} className="flex items-center space-x-2 cursor-pointer">
                                     <span className="text-sm font-medium text-gray-600">On Daily Count</span>
                                     <div className="relative">
@@ -607,7 +698,7 @@ const ProductList: React.FC = () => {
                         </div>
                     )) : (
                       <div className="text-center py-10 text-gray-500 bg-white rounded-lg shadow-md">
-                        <p>{searchQuery ? `No products found for "${searchQuery}".` : 'No products found.'}</p>
+                        <p>{searchQuery ? `No products found matching "${searchQuery}".` : 'No products found.'}</p>
                       </div>
                     )}
                  </div>
@@ -693,6 +784,36 @@ const ProductList: React.FC = () => {
                 <label htmlFor="lowStockThreshold" className="block text-sm font-medium text-gray-700">Low Stock Threshold</label>
                 <input type="number" id="lowStockThreshold" name="lowStockThreshold" value={formState.lowStockThreshold} onChange={handleFormChange} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" disabled={isSubmitting} />
             </div>
+            
+            <div className="pt-2">
+                <label htmlFor="isActive" className="flex items-center space-x-3 cursor-pointer p-2 rounded-md hover:bg-gray-50 border border-transparent transition-colors">
+                    <div className="relative inline-block w-12 mr-2 align-middle select-none transition duration-200 ease-in">
+                        <input 
+                            type="checkbox" 
+                            name="isActive" 
+                            id="isActive" 
+                            checked={formState.isActive} 
+                            onChange={handleFormChange} 
+                            className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"
+                            disabled={isSubmitting}
+                            style={{ 
+                                right: formState.isActive ? '0' : 'auto', 
+                                left: formState.isActive ? 'auto' : '0',
+                                borderColor: formState.isActive ? '#4F46E5' : '#D1D5DB' 
+                            }}
+                        />
+                        <label 
+                            htmlFor="isActive" 
+                            className={`toggle-label block overflow-hidden h-6 rounded-full cursor-pointer ${formState.isActive ? 'bg-indigo-600' : 'bg-gray-300'}`}
+                        ></label>
+                    </div>
+                    <div>
+                        <span className="text-sm font-medium text-gray-700">{formState.isActive ? 'Product is Active' : 'Product is Out of Stock'}</span>
+                        <p className="text-xs text-gray-500">{formState.isActive ? 'Managers can see and order this item.' : 'This item will be blocked from new orders.'}</p>
+                    </div>
+                </label>
+            </div>
+
           {error && <p className="text-sm text-red-600">{error}</p>}
           <div className="flex justify-end space-x-2 pt-2">
             <button onClick={closeModal} className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300" disabled={isSubmitting}>
