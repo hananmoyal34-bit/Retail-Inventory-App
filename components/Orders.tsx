@@ -15,6 +15,7 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
         'Pickup': 'bg-blue-100 text-blue-800',
         'Partial': 'bg-orange-100 text-orange-800',
         'Out of Stock': 'bg-red-100 text-red-800',
+        'Delivered': 'bg-green-100 text-green-800',
     };
     const style = statusStyles[status] || 'bg-gray-100 text-gray-800';
     return <span className={`px-3 py-1.5 text-sm leading-5 font-semibold rounded-full ${style}`}>{status || 'Pending'}</span>;
@@ -425,6 +426,67 @@ const Orders: React.FC = () => {
     };
 
 
+    const InteractiveStatusDropdown: React.FC<{ order: LocationOrder }> = ({ order }) => {
+        const isUpdating = submittingQuickAction?.orderID === order.orderID;
+        
+        const statusStyles: Record<string, string> = {
+            'Pending': 'bg-yellow-100 text-yellow-800 border-yellow-200',
+            'Pickup': 'bg-blue-100 text-blue-800 border-blue-200',
+            'Partial': 'bg-orange-100 text-orange-800 border-orange-200',
+            'Out of Stock': 'bg-red-100 text-red-800 border-red-200',
+            'Delivered': 'bg-green-100 text-green-800 border-green-200',
+        };
+
+        const style = statusStyles[order.status] || 'bg-gray-100 text-gray-800 border-gray-200';
+
+        const handleChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+            const newStatus = e.target.value;
+            if (newStatus === order.status) return;
+
+            // If choosing status that requires extra info/warnings, use the standard modal
+            if (newStatus === 'Partial' || newStatus === 'Out of Stock') {
+                setEditingOrder(order);
+                setNewStatus(newStatus);
+                setNewOfficeNotes(order.officeNotes || '');
+                setNewQuantity(order.quantity);
+                setSubmissionError('');
+                setIsEditModalOpen(true);
+            } else {
+                // For direct updates, use quick action
+                handleQuickStatusUpdate(order, newStatus);
+            }
+        };
+
+        return (
+            <div className="relative inline-flex items-center">
+                {isUpdating && (
+                    <div className="absolute -left-6 top-1/2 -translate-y-1/2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-indigo-500 border-t-transparent"></div>
+                    </div>
+                )}
+                <select
+                    value={order.status || 'Pending'}
+                    onChange={handleChange}
+                    disabled={isUpdating}
+                    className={`appearance-none text-xs font-bold rounded-full py-1 px-3 pr-8 border focus:ring-2 focus:ring-indigo-500 cursor-pointer transition-colors shadow-sm ${style}`}
+                    style={{
+                        backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%234b5563' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
+                        backgroundPosition: 'right 0.5rem center',
+                        backgroundRepeat: 'no-repeat',
+                        backgroundSize: '1.2em 1.2em'
+                    }}
+                >
+                    <option value="Pending">Pending</option>
+                    <option value="Pickup">Pickup</option>
+                    <option value="Partial">Partial</option>
+                    <option value="Out of Stock">Out of Stock</option>
+                    <option value="Delivered">Delivered</option>
+                </select>
+            </div>
+        );
+    };
+
+
   if (loading) {
     return (
         <div className="space-y-6">
@@ -590,7 +652,6 @@ const Orders: React.FC = () => {
                             <ChevronDownIcon className="h-5 w-5 mr-2 text-gray-500 transform transition-transform duration-200 group-open/date:rotate-180" />
                           </summary>
                           <div className="space-y-3 mt-3">
-                            {/* FIX: Add explicit type casting for Object.entries to resolve 'unknown' type errors in TypeScript. */}
                             {(Object.entries(itemsGroupedByName) as [string, { totalQuantity: number; details: LocationOrder[] }][])
                               .sort(([nameA], [nameB]) => nameA.localeCompare(nameB))
                               .map(([itemName, group]) => {
@@ -634,10 +695,7 @@ const Orders: React.FC = () => {
                                                                 <span className="text-gray-500 italic text-sm"> by {order.userName || order.createdBy}</span>
                                                                 </p>
                                                                 <div className="flex items-center gap-2 flex-shrink-0">
-                                                                    <StatusBadge status={order.status} />
-                                                                    <button onClick={() => handleQuickStatusUpdate(order, 'Pickup')} className="p-2 text-blue-500 hover:text-blue-700 rounded-full hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed" aria-label={`Mark order ${order.orderID} as picked up`} disabled={isAnythingSubmitting || order.status === 'Pickup' || selectedOrders.size > 0}>
-                                                                        {isSubmittingThisAction('Pickup') ? <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900"></div> : <CheckCircleIcon className="h-6 w-6" />}
-                                                                    </button>
+                                                                    <InteractiveStatusDropdown order={order} />
                                                                     <button onClick={() => handleOpenEditModal(order)} className="p-2 text-gray-500 hover:text-indigo-600 rounded-full hover:bg-gray-100 disabled:opacity-50" aria-label={`Edit order ${order.orderID}`} disabled={isAnythingSubmitting || selectedOrders.size > 0}>
                                                                         <PencilIcon className="h-5 w-5" />
                                                                     </button>
@@ -663,7 +721,7 @@ const Orders: React.FC = () => {
                                           })}
                                       </div>
                                   </details>
-                              );
+                                );
                               })}
                           </div>
                       </details>
@@ -697,6 +755,7 @@ const Orders: React.FC = () => {
                 <option>Pickup</option>
                 <option>Partial</option>
                 <option>Out of Stock</option>
+                <option>Delivered</option>
               </select>
             </div>
              {newStatus === 'Partial' && (
