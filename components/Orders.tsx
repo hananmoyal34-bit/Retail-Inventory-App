@@ -394,23 +394,58 @@ const Orders: React.FC = () => {
 
         let textToCopy = '*Order Request*\n\n';
 
+        // Redundant suffixes to strip for product normalization
+        const redundantSuffixes = [' Charger Case', ' Case', ' Screen Protector', ' Lens Protector', ' Privacy Glass', ' Clear Case'];
+
         for (const location of Object.keys(groupedByLocation).sort()) {
-            textToCopy += `*📍 ${location}*\n`;
+            textToCopy += `*📍 ${location}*\n\n`;
             
             const ordersInLocation = groupedByLocation[location];
             
-            ordersInLocation
-                .sort((a, b) => a.item.localeCompare(b.item))
-                .forEach(order => {
-                    textToCopy += `- ${order.quantity} x *${order.item}*`;
-                    if (order.colors) {
-                        textToCopy += ` (${order.colors})`;
+            // Sub-group and aggregate quantities by cleaned item name
+            const itemAggregation: Record<string, { colors: Record<string, number>, notes: string[] }> = {};
+
+            ordersInLocation.forEach(order => {
+                let cleanedName = order.item;
+                for (const suffix of redundantSuffixes) {
+                    if (cleanedName.toLowerCase().endsWith(suffix.toLowerCase())) {
+                        cleanedName = cleanedName.slice(0, -suffix.length).trim();
+                        break; 
                     }
-                    textToCopy += '\n';
-                    if (order.notes && order.notes.trim()) {
-                        textToCopy += `  _Note: ${order.notes.trim()}_\n`;
+                }
+
+                if (!itemAggregation[cleanedName]) {
+                    itemAggregation[cleanedName] = { colors: {}, notes: [] };
+                }
+
+                const colorKey = order.colors?.trim() || 'Standard';
+                itemAggregation[cleanedName].colors[colorKey] = (itemAggregation[cleanedName].colors[colorKey] || 0) + order.quantity;
+                
+                if (order.notes && order.notes.trim()) {
+                    itemAggregation[cleanedName].notes.push(order.notes.trim());
+                }
+            });
+
+            // Format each aggregated item
+            Object.entries(itemAggregation)
+                .sort(([nameA], [nameB]) => nameA.localeCompare(nameB))
+                .forEach(([name, data]) => {
+                    const colorDetails = Object.entries(data.colors)
+                        .sort(([cA], [cB]) => cA.localeCompare(cB))
+                        .map(([color, qty]) => `${color} (${qty})`)
+                        .join(', ');
+
+                    textToCopy += `• *${name}*: ${colorDetails}\n`;
+                    
+                    // Show unique notes indented below the product line
+                    const uniqueNotes = [...new Set(data.notes)];
+                    if (uniqueNotes.length > 0) {
+                        uniqueNotes.forEach(note => {
+                            textToCopy += `  _${note}_\n`;
+                        });
                     }
                 });
+            
             textToCopy += '\n';
         }
 
@@ -598,7 +633,11 @@ const Orders: React.FC = () => {
             <details 
                 key={location} 
                 open={expandedLocations.has(location)} 
-                onToggle={(e) => handleToggleLocation(location, (e.target as HTMLDetailsElement).open)}
+                onToggle={(e) => {
+                    if (e.target === e.currentTarget) {
+                        handleToggleLocation(location, (e.target as HTMLDetailsElement).open);
+                    }
+                }}
                 className="bg-white shadow rounded-lg transition-all duration-300 group"
             >
                 <summary className="px-4 py-3 text-lg font-semibold text-gray-800 cursor-pointer list-none flex justify-between items-center hover:bg-gray-50 rounded-t-lg">

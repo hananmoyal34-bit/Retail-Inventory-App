@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { InventoryLog as InventoryLogType, WarehouseCountLog, AppSheetProduct } from '../types';
 import { getInventoryLogs, getWarehouseCountLogs, getAppSheetProducts, formatDateToYMD, formatToLocaleString } from '../services/dataService';
@@ -376,7 +377,21 @@ const WarehouseInventory: React.FC = () => {
                             <button onClick={() => setExpandedCategories(new Set())} className="px-3 py-1 text-xs font-medium text-gray-700 bg-gray-200 rounded-md">Collapse All</button>
                         </div>
                         {Object.keys(filteredWarehouseStock).length > 0 ? (Object.entries(filteredWarehouseStock) as [string, any[]][]).map(([category, products]) => (
-                        <details key={category} className="bg-white shadow-md rounded-xl overflow-hidden group transition-all duration-300" open={expandedCategories.has(category)}>
+                        <details 
+                            key={category} 
+                            className="bg-white shadow-md rounded-xl overflow-hidden group transition-all duration-300" 
+                            open={expandedCategories.has(category)}
+                            onToggle={(e) => {
+                                if (e.target === e.currentTarget) {
+                                    setExpandedCategories(prev => {
+                                        const newSet = new Set(prev);
+                                        if ((e.target as HTMLDetailsElement).open) newSet.add(category);
+                                        else newSet.delete(category);
+                                        return newSet;
+                                    });
+                                }
+                            }}
+                        >
                             <summary className="px-6 py-4 text-xl font-bold text-gray-800 cursor-pointer list-none flex justify-between items-center bg-gray-100 hover:bg-gray-200 transition-colors" onClick={(e) => handleToggleCategory(e, category)}>
                                 <span>{category}</span>
                                 <span className="text-indigo-600">
