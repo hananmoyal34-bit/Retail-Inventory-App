@@ -1,3 +1,4 @@
+
 import React from 'react';
 
 export const ArrowUpTrayIcon = ({ className = "h-5 w-5" }: { className?: string }) => (

@@ -2,7 +2,7 @@
 import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { Page, Product, InventoryLog, User, LocationOrder, CountLog, WarehouseCountLog, AppSheetProduct, Location } from '../types';
 import { getProducts, getInventoryLogs, getUsers, getLocationOrders, formatDateToYMD, getCountLogs, getWarehouseCountLogs, getAppSheetProducts, getLocations, getCurrentDateInTimezone, formatToLocaleString } from '../services/dataService';
-import { BoxIcon, ChartBarIcon, TruckIcon, ChevronDownIcon, ClipboardListIcon, WarehouseIcon, ChevronRightIcon, AdjustmentsIcon } from './icons';
+import { BoxIcon, ChartBarIcon, TruckIcon, ChevronDownIcon, ClipboardListIcon, WarehouseIcon, ChevronRightIcon, AdjustmentsIcon, XCircleIcon } from './icons';
 import LocationTag from './LocationTag';
 import DatePicker from './DatePicker';
 
@@ -135,6 +135,57 @@ const LowStockCard: React.FC<{
     );
 };
 
+const OutOfStockProductsCard: React.FC<{ 
+    products: AppSheetProduct[];
+    onNavigate: () => void;
+}> = ({ products, onNavigate }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    
+    const inactiveProducts = useMemo(() => {
+        return products.filter(p => p.isActive === false);
+    }, [products]);
+
+    const total = inactiveProducts.length;
+
+    return (
+        <GlassCard className="p-5 flex flex-col">
+            <button 
+                onClick={() => setIsOpen(!isOpen)}
+                className="w-full flex justify-between items-center text-left"
+                aria-expanded={isOpen}
+            >
+                 <div className="flex items-center">
+                    <div className="p-3 bg-white/50 rounded-full mr-4">
+                       <XCircleIcon className="h-6 w-6 text-red-600" />
+                    </div>
+                    <div>
+                        <p className="text-sm font-medium text-gray-600">Offline / Out of Stock</p>
+                        <p className="text-3xl font-bold text-gray-900">{total}</p>
+                    </div>
+                </div>
+                <ChevronDownIcon className={`h-6 w-6 text-gray-500 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
+            </button>
+            <div className={`transition-all duration-500 ease-in-out overflow-hidden ${isOpen ? 'max-h-96 mt-4 pt-4 border-t border-white/30' : 'max-h-0'}`}>
+                <div className="divide-y divide-white/20 max-h-64 overflow-y-auto pr-2">
+                    {inactiveProducts.length > 0 ? inactiveProducts.map(item => (
+                        <div key={item.name} className="py-2 flex justify-between items-center">
+                            <p className="text-sm font-medium text-gray-800">{item.name}</p>
+                            <span className="text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-bold">OFFLINE</span>
+                        </div>
+                    )) : (
+                        <p className="py-3 text-sm text-gray-500">All products are currently active.</p>
+                    )}
+                </div>
+            </div>
+            <div className="mt-auto pt-4">
+                 <button onClick={onNavigate} className="w-full text-center px-4 py-2 text-sm font-semibold text-red-700 bg-red-100 rounded-lg hover:bg-red-200 transition-colors">
+                    Manage Product Status
+                </button>
+            </div>
+        </GlassCard>
+    );
+};
+
 const ProductListCard: React.FC<{ 
     products: AppSheetProduct[];
     onNavigate: () => void;
@@ -199,7 +250,8 @@ const SkeletonCard: React.FC<{ className?: string }> = ({ className = "" }) => (
 const DashboardSkeleton: React.FC = () => (
     <div className="space-y-6">
         <div className="h-9 bg-slate-300/50 rounded w-1/4 animate-pulse"></div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <SkeletonCard />
             <SkeletonCard />
             <SkeletonCard />
             <SkeletonCard />
@@ -463,8 +515,11 @@ const Dashboard: React.FC<DashboardProps> = ({ setActivePage }) => {
     const handleColumnToggle = (key: string) => {
         setVisibleColumns(prev => {
             const newSet = new Set(prev);
-            if (newSet.has(key)) newSet.delete(key);
-            else newSet.add(key);
+            if (newSet.has(key)) {
+                newSet.delete(key);
+            } else {
+                newSet.add(key);
+            }
             return newSet;
         });
     };
@@ -598,10 +653,10 @@ const Dashboard: React.FC<DashboardProps> = ({ setActivePage }) => {
             )}
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {/* Modified to show count of locations with open orders */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <OpenOrdersCard total={openOrdersByLocation.length} items={openOrdersByLocation} onNavigate={() => setActivePage(Page.ORDERS)} />
             <LowStockCard warehouseStock={warehouseStock} appSheetProducts={appSheetProducts} onNavigate={() => setActivePage(Page.PRODUCTS)} />
+            <OutOfStockProductsCard products={appSheetProducts} onNavigate={() => setActivePage(Page.PRODUCTS)} />
             <ProductListCard products={appSheetProducts} onNavigate={() => setActivePage(Page.PRODUCTS)} />
         </div>
 
