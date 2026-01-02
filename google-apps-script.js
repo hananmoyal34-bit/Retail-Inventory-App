@@ -399,21 +399,6 @@ function handleSubmitOrder(payload) {
   return { status: 'success', message: 'Order submitted successfully!' };
 }
 
-function updateDraftCountStockIn(location, productName, quantityToAdd) {
-  const sheet = getSheet(SHEET_NAMES.draftCounts);
-  const data = sheet.getDataRange().getValues();
-  const todayYMD = new Date().toISOString().slice(0, 10);
-  
-  for (let i = 1; i < data.length; i++) {
-    const row = data[i], rowDate = new Date(row[2]).toISOString().slice(0, 10);
-    if (rowDate === todayYMD && row[1] === location && row[3] === productName) {
-      // If a draft row exists, do nothing (return without updating).
-      return;
-    }
-  }
-  sheet.appendRow([`${location}-${todayYMD}-${productName}`, location, new Date(), productName, 0, quantityToAdd, 0, 0, 0, false, 'System-Auto', new Date()]);
-}
-
 function handleUpdateOrderStatus(payload) {
   const sheet = getSheet(SHEET_NAMES.locationOrders);
   const { orderID, status, officeNotes, quantity } = payload;
@@ -421,28 +406,8 @@ function handleUpdateOrderStatus(payload) {
   if (!rowInfo) throw new Error(`Order ID ${orderID} not found.`);
   
   const h = rowInfo.headers;
-  const originalStatus = String(rowInfo.rowData[h.indexOf('Status')] || 'Pending').trim();
   
-  if ((status === 'Pickup' || status === 'Partial') && originalStatus === 'Pending') {
-    const productsSheet = getSheet(SHEET_NAMES.products);
-    // Dynamically find product name column
-    const productNameCol = findColumnName(productsSheet, ['ProductName', 'Product Name', 'Item', 'Name']);
-    
-    if (productNameCol) {
-      const headerRow = productsSheet.getRange(1, 1, 1, productsSheet.getLastColumn()).getValues()[0];
-      const colIndex = headerRow.indexOf(productNameCol);
-      // Fetch only the product name column
-      const productNames = productsSheet.getRange(2, colIndex + 1, productsSheet.getLastRow() - 1, 1).getValues().flat();
-      
-      const productName = rowInfo.rowData[h.indexOf('Item')];
-      if (productNames.includes(productName)) {
-        const orderQuantity = (status === 'Partial' && quantity != null) ? quantity : rowInfo.rowData[h.indexOf('Quantity')];
-        updateDraftCountStockIn(rowInfo.rowData[h.indexOf('Location')], productName, orderQuantity);
-      }
-    }
-  }
-  
-  // New Logic: If marking as "Out of Stock", update the product list
+  // Logic: If marking as "Out of Stock", update the product list
   if (status === 'Out of Stock') {
     try {
         const prodSheet = getSheet(SHEET_NAMES.productsListAppsheet);

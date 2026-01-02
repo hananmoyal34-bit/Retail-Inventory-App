@@ -214,16 +214,16 @@ const InventoryCount: React.FC = () => {
     if (loading || products.length === 0 || !selectedLocation || !date) return;
     
     if(activeTab === 'count') {
-        // FIX: Explicitly type the result of some and casting log.date and date to string to resolve unknown type issues.
+        // FIX: Cast properties and state to string to resolve 'unknown' type errors during comparison.
         const finalizedLogExists: boolean = countLogs.some((log: CountLog) => 
-            log.location === selectedLocation && formatDateToYMD(String(log.date)) === String(date)
+            log.location === selectedLocation && formatDateToYMD(log.date as string) === (date as string)
         );
         setIsFinalized(finalizedLogExists);
 
         if (finalizedLogExists) {
             const finalizedEntries = products.map((product: Product) => {
-                // FIX: Added String() casting to resolve unknown type errors in comparison.
-                const log = countLogs.find((l: CountLog) => l.location === selectedLocation && formatDateToYMD(String(l.date)) === String(date) && l.productName === product.productName);
+                // FIX: Added string casting to resolve unknown type errors in comparison.
+                const log = countLogs.find((l: CountLog) => l.location === selectedLocation && formatDateToYMD(l.date as string) === (date as string) && l.productName === product.productName);
                 return {
                     productID: product.productID, productName: product.productName,
                     openingStock: log?.openingStock ?? 0, calculatedOpeningStock: 0,
@@ -235,12 +235,12 @@ const InventoryCount: React.FC = () => {
             setCountEntries(finalizedEntries);
             setDraftSaveStatus({ saving: false, lastSaved: null });
         } else {
-            // FIX: Added String() casting to resolve unknown type errors in comparison.
-            const draftsForDay = draftCounts.filter((d: DraftCount) => d.location === selectedLocation && formatDateToYMD(String(d.date)) === String(date));
+            // FIX: Added string casting to resolve unknown type errors in comparison when filtering drafts.
+            const draftsForDay = draftCounts.filter((d: DraftCount) => d.location === selectedLocation && formatDateToYMD(d.date as string) === (date as string));
             if (draftsForDay.length > 0) {
                 const draftEntries = products.map((product: Product) => {
-                    // FIX: Ensure types for find and using String() cast for comparison to resolve unknown type issues.
-                    const draft = draftsForDay.find((d: DraftCount) => String(d.productName) === String(product.productName));
+                    // FIX: Explicitly cast properties to string to resolve unknown type issues during finding the specific draft.
+                    const draft = draftsForDay.find((d: DraftCount) => (d.productName as string) === (product.productName as string));
                     const calculatedValue = openingStock.get(product.productName) || 0;
                     return {
                         productID: product.productID, productName: product.productName,
@@ -251,7 +251,7 @@ const InventoryCount: React.FC = () => {
                     };
                 });
                 setCountEntries(draftEntries);
-                // FIX: Cast timestamp as string to resolve unknown type assignment.
+                // FIX: Cast timestamp as string to resolve unknown type assignment error.
                 const latestDraftTimestamp = draftsForDay.length > 0 ? (draftsForDay[0].timestamp as string) : null;
                 setDraftSaveStatus({ saving: false, lastSaved: latestDraftTimestamp });
             } else {
